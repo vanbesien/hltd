@@ -51,9 +51,11 @@ class elasticBandBU:
     def __init__(self,es_server_url,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es_server_url=es_server_url
-        self.runindex_alias="runindex_"+conf.elastic_runindex_name+"_write"
+        self.runindex_write="runindex_"+conf.elastic_runindex_name+"_write"
+        self.runindex_read="runindex_"+conf.elastic_runindex_name+"_read"
         self.runindex_name="runindex_"+conf.elastic_runindex_name
-        self.boxinfo_alias="boxinfo_"+conf.elastic_runindex_name+"_write"
+        self.boxinfo_write="boxinfo_"+conf.elastic_runindex_name+"_write"
+        self.boxinfo_read="boxinfo_"+conf.elastic_runindex_name+"_read"
         self.boxinfo_name="boxinfo_"+conf.elastic_runindex_name
         self.runnumber = str(runnumber)
         self.startTime = startTime
@@ -240,15 +242,17 @@ class elasticBandBU:
             if self.stopping:break
             connectionAttempts+=1
             try:
-                self.logger.info('writing to elastic index '+self.runindex_alias)
-                self.logger.info('writing to elastic index '+self.boxinfo_alias)
+                self.logger.info('writing to elastic index '+self.runindex_write)
+                self.logger.info('writing to elastic index '+self.boxinfo_write)
                 ip_url=getURLwithIP(es_server_url)
                 self.es = ElasticSearch(es_server_url)
                 self.es.create_index(self.runindex_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
                 self.es.create_index(self.boxinfo_name, settings={ 'settings': self.settings, 'mappings': self.boxinfo_mapping })
                 aliases_settings = { "actions": [
-                                        {"add": {"index": self.runindex_name, "alias": self.runindex_alias}},
-                                        {"add": {"index": self.boxinfo_name, "alias": self.boxinfo_alias}}
+                                        {"add": {"index": self.runindex_name, "alias": self.runindex_write}},
+                                        {"add": {"index": self.runindex_name, "alias": self.runindex_read}},
+                                        {"add": {"index": self.boxinfo_name, "alias": self.boxinfo_write}},
+                                        {"add": {"index": self.boxinfo_name, "alias": self.boxinfo_read}}
                                     ]}
                 self.es.update_aliases(aliases_settings)
 
@@ -390,9 +394,9 @@ class elasticBandBU:
         attempts=0
         destination_index = ""
         if name=="boxinfo":
-          destination_index = self.boxinfo_alias
+          destination_index = self.boxinfo_write
         else:
-          destination_index = self.runindex_alias
+          destination_index = self.runindex_write
         while True:
             attempts+=1
             try:
