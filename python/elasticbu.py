@@ -237,6 +237,11 @@ class elasticBandBU:
           
           }
 
+
+
+        
+
+
         connectionAttempts=0
         while True:
             if self.stopping:break
@@ -246,15 +251,24 @@ class elasticBandBU:
                 self.logger.info('writing to elastic index '+self.boxinfo_write)
                 ip_url=getURLwithIP(es_server_url)
                 self.es = ElasticSearch(es_server_url)
-                self.es.create_index(self.runindex_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
-                self.es.create_index(self.boxinfo_name, settings={ 'settings': self.settings, 'mappings': self.boxinfo_mapping })
-                aliases_settings = { "actions": [
+
+                #check if runindex alias exists
+                if not requests.get(es_server_url+'/_alias/'+self.runindex_write).status_code == "200": 
+                    self.es.create_index(self.runindex_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+                    aliases_settings = { "actions": [
                                         {"add": {"index": self.runindex_name, "alias": self.runindex_write}},
-                                        {"add": {"index": self.runindex_name, "alias": self.runindex_read}},
+                                        {"add": {"index": self.runindex_name, "alias": self.runindex_read}}
+                                    ]}
+                    self.es.update_aliases(aliases_settings)
+                
+                #check if runindex alias exists
+                if not requests.get(es_server_url+'/_alias/'+self.boxinfo_write).status_code == "200": 
+                    self.es.create_index(self.boxinfo_name, settings={ 'settings': self.settings, 'mappings': self.boxinfo_mapping })
+                    aliases_settings = { "actions": [
                                         {"add": {"index": self.boxinfo_name, "alias": self.boxinfo_write}},
                                         {"add": {"index": self.boxinfo_name, "alias": self.boxinfo_read}}
                                     ]}
-                self.es.update_aliases(aliases_settings)
+                    self.es.update_aliases(aliases_settings)    
 
                 break
             except ElasticHttpError as ex:
@@ -717,7 +731,7 @@ class RunCompletedChecker(threading.Thread):
                             #fill in central index completition time
                             #EXPERIMENTAL!
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
-                            requests.post(conf.es_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',putq)
+                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',putq)
                             self.logger.info("filled in completition time for run"+str(self.nr))
                         except Exception as ex:
                             self.logger.exception(ex)
