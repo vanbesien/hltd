@@ -72,67 +72,75 @@ class ContextualCounter(object):
         self.reset()
 
     def check(self,event):
-        #msgId = event.document['module'] + str(event.document['lexicalId'])
+        #try:
+        #    msgId = event.document['module'] + str(event.document['lexicalId'])
+        #except:#no module in document
+        #    msgId = str(event.document['lexicalId'])
         msgId = event.document['lexicalId']
         try:
-             counter = self.idCounterMap[msgId]
+             counter = self.idCounterMap[msgId][0]
+             modulo = self.idCounterMap[msgId][1]
         except:
              if self.numberOfIds>=self.maxNumberOfIds:
                  if self.numberOfIds==self.maxNumberOfIds:
-                     self.logger.warning("Reached maximum number of CMSSW message IDs. Logging disabled...")
+                     self.logger.error("Reached maximum number of CMSSW message IDs. Logging disabled...")
                      self.numberOfIds+=1
                  return False
-                 
-             counter = 0
-             self.idCounterMap[msgId]=counter
+             self.idCounterMap[msgId]=[1,self.moduloInitial]
              self.numberOfIds+=1
+             #always print first message
              return True
 
         counter+=1
-            
-        if counter%self.logModulo == 0:
-            self.logModulo *= 10
-            retval = createTelescopicLog(event)
-        elif counter>self.logModulo:
-            #suppressing maximum of 10 different messages at the time
-            if msgId in suppressListIds:
+        self.idCounterMap[msgId][0]=counter
+        if counter<self.moduloBase and modulo==1:
+            return True
+        elif counter%modulo == 0:
+            if counter==modulo:
+                #modulo level reached, increasing exponent
+                modulo *= self.moduloBase
+                self.idCounterMap[msgId][1]=modulo
+            self.createTelescopicLog(event,modulo)
+            return True
+        else:
+            #suppressing maximum of 'suppressMax' different messages at the time
+            for e in self.suppressList:
+                if (e.msgId==msgId):return False
+
+            #message id not found in suppressed list..
+            e = SuppressInfo(msgId,counter)
+            if len(self.suppressList)<self.suppressMax:
+                self.suppressList.append(e)
+                return False
+            #else try to replace other suppressed type
+            elif counter>=self.alwaysSuppressThreshold: 
+                for item in self.suppressList:
+                    if counter>item.counter and item.counter<self.alwaysSuppressThreshold:
+                        self.suppressList.remove(item)
+                        break
+                self.suppressList.append(e)
                 return False
             else:
-                e = SuppressInfo(msgId,counter)
-                if len(self.suppressList)<self.suppressMax:
-                    self.suppressList.append(e)
-                    return False
-                #else try to replace other suppressed type
-                elif counter>=self.alwaysSuppressThreshold: 
-                    for item in self.suppressList:
-                        if counter>item.counter and item.counter<self.alwaysSuppressThreshold:
-                            self.suppressList.remove(item.counter)
-                            break
-                    self.suppressList.append(e)
-                    return False
-                else:
-                    for item in self.suppressList:
-                        if counter>item.counter:
-                            self.suppressList.remove(item.counter)
-                            self.suppressList.append(e)
-                            return False
+                for item in self.suppressList:
+                    if counter>item.counter:
+                        self.suppressList.remove(item)
+                        self.suppressList.append(e)
+                        return False
         return True
 
     def reset(self):
         self.idCounterMap={}
         self.numberOfIds=0
         self.maxNumberOfIds=1000
-        self.moduloInitial=10
-        self.logModulo=self.moduloInitial
+        self.moduloBase=10
+        self.moduloInitial=1
         self.suppressMax=10
         self.suppressList=[]
-        self.alwasySuppressthreshold=200
+        self.alwaysSuppressThreshold=200
 
-    def createTelescopicLog(event):
-        event.append("Another "+ str(self.logModulo) + " messages like this will be suppressed")
+    def createTelescopicLog(self,event,modulo):
+        event.append("Another "+ str(modulo) + " messages like this will be suppressed")
 
-    def createTelescopicLog(event):
-        event.append("Another "+ str(self.logModulo) + " messages like this will be suppressed")
 
 
 
@@ -476,7 +484,7 @@ class CMSSWLogESWriter(threading.Thread):
     def __init__(self,rn):
         threading.Thread.__init__(self)
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.queue = Queue.Queue()
+        self.queue = Queue.Queue(1024)
         self.parsers = {}
         self.numParsers=0
         self.doStop = False
@@ -515,7 +523,7 @@ class CMSSWLogESWriter(threading.Thread):
                         try:
                             evt = self.queue.get(False)
                             try:
-                                if self.check(evt):
+                                if self.contextualCounter.check(evt):
                                     self.eb.es.index(self.eb.indexName,'cmsswlog',evt.document)
                             except Exception,ex: 
                                 self.logger.error("es index:"+str(ex))

@@ -26,6 +26,7 @@ class hltdConf:
             for item,value in cfg.items(sec):
                 self.__dict__[item] = value
 
+        self.enabled = bool(self.enabled=="True")
         self.run_number_padding = int(self.run_number_padding)
         self.delete_run_dir = bool(self.delete_run_dir=="True")
         self.use_elasticsearch = bool(self.use_elasticsearch=="True")

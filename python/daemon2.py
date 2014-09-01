@@ -4,6 +4,7 @@ import subprocess
 from signal import SIGINT
 from aUtils import * #for stdout and stderr redirection
 import ConfigParser
+import re
 
 class Daemon2:
     """
