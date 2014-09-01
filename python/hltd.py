@@ -77,26 +77,27 @@ def cleanup_resources():
         os.rename(idles+dirlist[i],quarantined+dirlist[i])
 
 
-def cleanup_mountpoints():
+def cleanup_mountpoints(remount=True):
     bu_disk_list_ramdisk[:] = []
     bu_disk_list_output[:] = []
     if conf.bu_base_dir[0] == '/':
         bu_disk_list_ramdisk[:] = [os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory)]
         bu_disk_list_output[:] = [os.path.join(conf.bu_base_dir,conf.output_subdirectory)]
         #make subdirectories if necessary and return
-        try:
-            os.makedirs(conf.bu_base_dir)
-        except OSError:
-            pass
-        try:
-            os.makedirs(os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory))
-        except OSError:
-            pass
-        try:
-            os.makedirs(os.path.join(conf.bu_base_dir,conf.output_subdirectory))
-        except OSError:
-            pass
-        return
+        if remount==True:
+            try:
+                os.makedirs(conf.bu_base_dir)
+            except OSError:
+                pass
+            try:
+                os.makedirs(os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory))
+            except OSError:
+                pass
+            try:
+                os.makedirs(os.path.join(conf.bu_base_dir,conf.output_subdirectory))
+            except OSError:
+                pass
+            return
     try:
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
@@ -110,6 +111,8 @@ def cleanup_mountpoints():
                 subprocess.check_call(['umount','/'+point])
             except subprocess.CalledProcessError, err1:
                 pass
+            except Exception as ex:
+                logging.exception(ex)
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
             except subprocess.CalledProcessError, err1:
@@ -120,18 +123,24 @@ def cleanup_mountpoints():
             except subprocess.CalledProcessError, err1:
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
+            #this will remove directories only if they are empty (as unomunted mount point should be)
             try:
                 if os.path.join('/'+point,conf.ramdisk_subdirectory)!='/':
 	            os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
-            except:pass
+            except Exception as ex:
+                logging.exception(ex)
             try:
                 if os.path.join('/'+point,conf.output_subdirectory)!='/':
                     os.rmdir(os.path.join('/'+point,conf.output_subdirectory))
-            except:pass
+            except Exception as ex:
+                logging.exception(ex)
             try:
                 if os.path.join('/',point)!='/':
                     os.rmdir('/'+point)
-            except:pass
+            except Exception as ex:
+                logging.exception(ex)
+        if remount==False:
+            return
         i = 0
         if os.path.exists(conf.resource_base+'/bus.config'):
             for line in open(conf.resource_base+'/bus.config'):
@@ -205,8 +214,9 @@ def cleanup_mountpoints():
     except Exception as ex:
         logging.error("Exception in cleanup_mountpoints")
         logging.exception(ex)
-        logging.fatal("Unable to handle mounting - exiting.")
-        sys.exit(1)
+        if remount==True:
+            logging.fatal("Unable to handle (un)mounting - exiting.")
+            sys.exit(1)
 
 def calculate_threadnumber():
     global nthreads
@@ -1126,7 +1136,7 @@ class Run:
                 try:
                     self.elastic_monitor.wait()
                 except OSError,ex:
-                    logging.info("Exception encountered in waiting for termination of nelastic:" +str(ex))
+                    logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
             if conf.delete_run_dir is not None and conf.delete_run_dir == True:
                 try:
                     shutil.rmtree(self.dirname)
@@ -1186,7 +1196,7 @@ class Run:
                 logging.info('start checking completition of run '+str(self.runnumber))
                 #mode 1: check for complete entries in ES
                 #mode 2: check for runs in 'boxes' files
-                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs)
+                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs,self.elastic_monitor)
                 self.endChecker.start()
             except Exception,ex:
                 logging.error('failure to start run completition checker:')
@@ -1584,6 +1594,10 @@ class hltd(Daemon2,object):
         infer it from the name of the machine
         """
 
+        if conf.enabled==False:
+            logging.warning("Service is currently disabled.")
+            sys.exit(1)
+
         if conf.role == 'fu':
 
             """
@@ -1691,6 +1705,8 @@ class hltd(Daemon2,object):
             logging.info("closing httpd socket")
             httpd.socket.close()
             logging.info(threading.enumerate())
+            logging.info("unmounting mount points")
+            cleanup_mountpoints(remount=False)
             logging.info("shutdown of service completed")
         except Exception as ex:
             logging.info("exception encountered in operating hltd")

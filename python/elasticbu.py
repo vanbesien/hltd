@@ -620,7 +620,7 @@ class BoxInfoUpdater(threading.Thread):
 
 class RunCompletedChecker(threading.Thread):
 
-    def __init__(self,mode,nr,nresources,run_dir,active_runs):
+    def __init__(self,mode,nr,nresources,run_dir,active_runs,elastic_process):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.mode = mode
         self.nr = nr
@@ -631,7 +631,7 @@ class RunCompletedChecker(threading.Thread):
         self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
         self.logurlclose = 'http://localhost:9200/log_run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
 
-        self.urlsearch = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_search?size=1'
+        self.urlsearch = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_search?size=1'
         self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
 
 
@@ -639,6 +639,7 @@ class RunCompletedChecker(threading.Thread):
         self.threadEvent = threading.Event()
         self.run_dir = run_dir
         self.active_runs = active_runs
+        self.elastic_process=elastic_process
         try:
             threading.Thread.__init__(self)
 
@@ -701,7 +702,11 @@ class RunCompletedChecker(threading.Thread):
         self.threadEvent.wait(10)
         while self.stop == False:
             self.threadEvent.wait(5)
-            if self.stop: return#giving up
+            if self.stop:
+                try:
+                    self.elastic_process.wait()
+                except:pass
+                return#giving up
             if os.path.exists(self.eorCheckPath) or os.path.exists(self.rundirCheckPath)==False:
                 break
 
@@ -729,10 +734,12 @@ class RunCompletedChecker(threading.Thread):
                             dataq = json.loads(respq.content)
                             fm_time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
                             #fill in central index completition time
-                            #EXPERIMENTAL!
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
-                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',putq)
+                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',postq)
                             self.logger.info("filled in completition time for run"+str(self.nr))
+                        except IndexError:
+                            # 0 FU resources present in this run, skip writing completition time
+                            pass 
                         except Exception as ex:
                             self.logger.exception(ex)
                         try:
@@ -758,11 +765,15 @@ class RunCompletedChecker(threading.Thread):
                     self.logger.exception(ex)
                     check_es_complete=False
 
-            #exit fi both checks are complete
-            if check_boxes==False and check_es_complete==False:return
+            #exit if both checks are complete
+            if check_boxes==False and check_es_complete==False:break
             #check every 10 seconds
             self.threadEvent.wait(10)
 
+        try:
+            self.elastic_process.wait()
+        except:pass
+ 
     def stop(self):
         self.stop = True
         self.threadEvent.set() 
