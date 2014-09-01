@@ -2,6 +2,9 @@
 
 import os,sys,socket
 import shutil
+
+import time
+
 sys.path.append('/opt/hltd/python')
 #from fillresources import *
 
@@ -66,13 +69,24 @@ def getIPs(hostname):
         raise ex
     return ips
 
+def getTimeString():
+    tzones = time.tzname
+    if len(tzones)>1:zone=str(tzones[1])
+    else:zone=str(tzones[0])
+    return str(time.strftime("%H:%M:%S"))+" "+time.strftime("%d-%b-%Y")+" "+zone
+
+
 def checkModifiedConfigInFile(file):
 
     f = open(file)
     lines = f.readlines(2)#read first 2
     f.close()
+    tzones = time.tzname
+    if len(tzones)>1:zone=tzones[1]
+    else:zone=tzones[0]
+
     for l in lines:
-        if l.strip().startswith("#edited by fff meta rpm"):
+        if l.strip().startswith("#edited by fff meta rpm at "+getTimeString()):
             return True
     return False
     
@@ -80,7 +94,7 @@ def checkModifiedConfigInFile(file):
 
 def checkModifiedConfig(lines):
     for l in lines:
-        if l.strip().startswith("#edited by fff meta rpm"):
+        if l.strip().startswith("#edited by fff meta rpm at "+getTimeString()):
             return True
     return False
     
@@ -545,6 +559,7 @@ if True:
         shutil.copy(hltdconf,os.path.join(backup_dir,os.path.basename(hltdconf)))
       hltdcfg = FileManager(hltdconf,'=',hltdEdited,' ',' ')
 
+      hltdcfg.reg('enabled','True','[General]')
       if type=='bu':
       
           #get needed info here

@@ -41,6 +41,7 @@ DEBUGLEVEL,INFOLEVEL,WARNINGLEVEL,ERRORLEVEL,FATALLEVEL = range(5)
 typeStr=['messagelogger','exception','eventlog','unformatted','stacktrace']
 severityStr=['DEBUG','INFO','WARNING','ERROR','FATAL']
 
+
 #test defaults
 readonce=32
 bulkinsertMin = 8
@@ -50,10 +51,90 @@ logThreshold = 1 #(INFO)
 contextLogThreshold = 0 #(DEBUG)
 STRMAX=80
 line_limit=1000
+maxlogsize=4194304 #4GB in kbytes
+#maxlogsize=33554432 #32GB in kbytes
+
 #cmssw date and time: "30-Apr-2014 16:50:32 CEST"
 #datetime_fmt = "%d-%b-%Y %H:%M:%S %Z"
 
 hostname = os.uname()[1]
+
+class SuppressInfo:
+
+    def __init__(self,id,counter):
+        self.msgId=id
+        self.counter=counter
+
+class ContextualCounter(object):
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.reset()
+
+    def check(self,event):
+        #msgId = event.document['module'] + str(event.document['lexicalId'])
+        msgId = event.document['lexicalId']
+        try:
+             counter = self.idCounterMap[msgId]
+        except:
+             if self.numberOfIds>=self.maxNumberOfIds:
+                 if self.numberOfIds==self.maxNumberOfIds:
+                     self.logger.warning("Reached maximum number of CMSSW message IDs. Logging disabled...")
+                     self.numberOfIds+=1
+                 return False
+                 
+             counter = 0
+             self.idCounterMap[msgId]=counter
+             self.numberOfIds+=1
+             return True
+
+        counter+=1
+            
+        if counter%self.logModulo == 0:
+            self.logModulo *= 10
+            retval = createTelescopicLog(event)
+        elif counter>self.logModulo:
+            #suppressing maximum of 10 different messages at the time
+            if msgId in suppressListIds:
+                return False
+            else:
+                e = SuppressInfo(msgId,counter)
+                if len(self.suppressList)<self.suppressMax:
+                    self.suppressList.append(e)
+                    return False
+                #else try to replace other suppressed type
+                elif counter>=self.alwaysSuppressThreshold: 
+                    for item in self.suppressList:
+                        if counter>item.counter and item.counter<self.alwaysSuppressThreshold:
+                            self.suppressList.remove(item.counter)
+                            break
+                    self.suppressList.append(e)
+                    return False
+                else:
+                    for item in self.suppressList:
+                        if counter>item.counter:
+                            self.suppressList.remove(item.counter)
+                            self.suppressList.append(e)
+                            return False
+        return True
+
+    def reset(self):
+        self.idCounterMap={}
+        self.numberOfIds=0
+        self.maxNumberOfIds=1000
+        self.moduloInitial=10
+        self.logModulo=self.moduloInitial
+        self.suppressMax=10
+        self.suppressList=[]
+        self.alwasySuppressthreshold=200
+
+    def createTelescopicLog(event):
+        event.append("Another "+ str(self.logModulo) + " messages like this will be suppressed")
+
+    def createTelescopicLog(event):
+        event.append("Another "+ str(self.logModulo) + " messages like this will be suppressed")
+
+
 
 def calculateLexicalId(string):
 
@@ -372,14 +453,14 @@ class CMSSWLogParser(threading.Thread):
                         e.decode()
                         mainQueue.put(e)
                     except Exception,ex:
-                        self.logger.error('failed to parse message contentent: ' + str(e.message))
+                        self.logger.error('failed to parse message contentent')
                         self.logger.exception(ex)
             try:
                 event.decode()
                 self.mainQueue.put(event)
 
             except Exception,ex:
-                self.logger.error('failed to parse message contentent: ' + str(e.message))
+                self.logger.error('failed to parse message contentent')
                 self.logger.exception(ex)
 
         elif saveHistory and event.severity>=contextLogThreshold:
@@ -410,6 +491,8 @@ class CMSSWLogESWriter(threading.Thread):
         self.index_runstring = 'run'+str(self.rn).zfill(conf.run_number_padding)
         self.index_suffix = conf.elastic_cluster
         self.eb = elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
+        
+        self.contextualCounter = ContextualCounter()
 
     def run(self):
         while self.abort == False:
@@ -418,7 +501,8 @@ class CMSSWLogESWriter(threading.Thread):
                 while self.abort == False:
                     try:
                         evt = self.queue.get(False)
-                        documents.append(evt.document)
+                        if self.contextualCounter.check(evt):
+                            documents.append(evt.document)
                     except Queue.Empty:
                         break
                 if len(documents)>0:
@@ -431,7 +515,8 @@ class CMSSWLogESWriter(threading.Thread):
                         try:
                             evt = self.queue.get(False)
                             try:
-                                self.eb.es.index(self.eb.indexName,'cmsswlog',evt.document)
+                                if self.check(evt):
+                                    self.eb.es.index(self.eb.indexName,'cmsswlog',evt.document)
                             except Exception,ex: 
                                 self.logger.error("es index:"+str(ex))
                         except Queue.Empty:
@@ -474,6 +559,10 @@ class CMSSWLogESWriter(threading.Thread):
             self.logger.warn('problem closing parser')
             self.logger.exception(ex)
 
+    def msgIsThrottled(self,doc):
+        #TODO:logarithmic checker based on timestamp and lexical ID
+        pass
+
 
 class CMSSWLogCollector(object):
 
@@ -487,7 +576,9 @@ class CMSSWLogCollector(object):
         global logThreshold
         logThreshold = loglevel
 
-        #start another queue to fill events into elasticsearch
+        #rename leftover hlt logs to old when process starts
+        self.renameOldLogs()
+
 
     def register_inotify_path(self,path,mask):
         self.inotifyWrapper.registerPath(path,mask)
@@ -517,9 +608,14 @@ class CMSSWLogCollector(object):
             if rn not in self.indices:
                 self.indices[rn] = CMSSWLogESWriter(rn)
                 self.indices[rn].start()
+
                 #clean old log files if size is excessive
-                if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>33554432: #32G in kbytes
-                    self.deleteOldLogs()
+                if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize: #4GB ; 33554432 = 32G in kbytes
+                    self.deleteOldLogs(168)#delete files older than 1 week
+
+                    #if not sufficient, delete all old log files 
+                    if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize:
+                        self.deleteOldLogs(0)#
             self.indices[rn].addParser(event.fullpath,pid)
 
         #cleanup
@@ -581,6 +677,14 @@ class CMSSWLogCollector(object):
             self.logger.error("Could not check directory size")
             self.logger.exception(ex)
             return 0
+
+    def renameOldLogs(self):
+        logfiles = os.listdir(self.dir)
+        for fname in logfiles:
+            if fname.startswith('hlt_') and fname.endswith('.log'):
+                #prepend file with 'old_' prefix so that it can be deleted later
+                os.rename(os.path.join(self.dir,fname),os.path.join(self.dir,'/old_'+fname))
+
 
 
 class HLTDLogIndex():

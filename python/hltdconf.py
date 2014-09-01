@@ -11,6 +11,7 @@ class hltdConf:
         cfg = ConfigParser.SafeConfigParser()
         cfg.read(conffile)
 
+        self.enabled=False
         self.role = None
         self.elastic_bu_test = None
         self.elastic_runindex_url = None
