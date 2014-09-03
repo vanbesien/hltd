@@ -142,8 +142,9 @@ def cleanup_mountpoints(remount=True):
         if remount==False:
             return
         i = 0
-        if os.path.exists(conf.resource_base+'/bus.config'):
-            for line in open(conf.resource_base+'/bus.config'):
+        bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+        if os.path.exists(bus_config):
+            for line in open(bus_config):
                 logging.info("found BU to mount at "+line.strip())
                 try:
                     os.makedirs('/'+conf.bu_base_dir+str(i))
@@ -1546,7 +1547,8 @@ class ResourceRanger:
 
         logging.debug('ResourceRanger-MODIFY: event '+event.fullpath)
         try:
-            if event.fullpath == conf.resource_base+'/bus.config':
+            bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+            if event.fullpath == bus_config:
                 if self.managed_monitor:
                     self.managed_monitor.stop()
                     self.managed_monitor.join()
@@ -1607,7 +1609,7 @@ class hltd(Daemon2,object):
             cleanup_resources()
             """
             recheck mount points
-            this is done at start and whenever the file /etc/appliance/resources/bus.config is modified
+            this is done at start and whenever the file /etc/appliance/bus.config is modified
             mount points depend on configuration which may be updated (by runcontrol)
             (notice that hltd does not NEED to be restarted since it is watching the file all the time)
             """

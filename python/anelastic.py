@@ -554,13 +554,33 @@ class LumiSectionHandler():
                 for datfile in datfilelist:
                     if datfile.stream == stream:
                         newfilepath = os.path.join(self.outdir,datfile.run,datfile.basename)
-                        datfile.moveFile(newfilepath)
+                        (filestem,ext)=os.path.splitext(datfile.filepath)
+                        checksum_file = filestem+'.checksum'
+                        doChecksum=False
+                        if conf.output_adler32:
+                            try:
+                                with open(checksum_file,"r") as fi:
+                                    checksum_cmssw = int(fi.read())
+                                    doChecksum=True
+                            except:pass
+                        (status,checksum)=datfile.moveFile(newfilepath,adler32=doChecksum)
+                        if doChecksum and status:
+                            if checksum_cmssw!=checksum&0xffffffff:
+                                self.logger.fatal("checksum mismatch for "+ datfile.filepath + " expected:" + str(checksum_cmssw) + " got:" + str(checksum))
+                            else:
+                                #store unsigned checksum and update file
+                                outfile.setFieldByName("FileAdler32",str(checksum&0xffffffff))
+                                outfile.writeout()
+                        try:
+                            os.unlink(filestem+'.checksum')
+                        except:pass
                         self.datfileList.remove(datfile)
 
-                #move output file in rundir
+                #move output json file in rundir
                 newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
                 outfile.esCopy()
-                if outfile.moveFile(newfilepath):
+                result,checksum=outfile.moveFile(newfilepath)
+                if result:
                     self.outfileList.remove(outfile)
  
                 

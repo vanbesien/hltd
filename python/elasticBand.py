@@ -176,6 +176,7 @@ class elasticBand():
                             'errorEvents' : {'type' : 'integer'},
                             'returnCodeMask': {'type':'string',"index" : "not_analyzed"},
                             'fileSize' : {'type':'long'},
+                            'fileAdler32' : {'type':'long'},
                             'files': {
                                 'properties' : {
                                     'name' : { 'type' : 'string',"index" : "not_analyzed"}
@@ -341,7 +342,7 @@ class elasticBand():
         if stream.startswith("stream"): stream = stream[6:]
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
 
         document['data']=datadict
@@ -362,7 +363,7 @@ class elasticBand():
         if stream.startswith("stream"): stream = stream[6:]
 
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
 
         

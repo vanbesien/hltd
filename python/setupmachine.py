@@ -25,7 +25,7 @@ try:
 except:pass
 
 hltdconf = '/etc/hltd.conf'
-busconfig = '/etc/appliance/resources/bus.config'
+busconfig = '/etc/appliance/bus.config'
 elasticsysconf = '/etc/sysconfig/elasticsearch'
 elasticconf = '/etc/elasticsearch/elasticsearch.yml'
 
