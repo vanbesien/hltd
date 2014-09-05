@@ -225,14 +225,15 @@ class fileHandler(object):
             self.logger.warning("bad field request %r in %r" %(field,self.definitions))
             return False
 
-    def setFieldByName(self,field,value):
+    def setFieldByName(self,field,value,warning=True):
         index,ftype = self.getFieldIndex(field)
         data = self.data["data"]
         if index > -1:
             data[index] = value
             return True
         else:
-            self.logger.warning("bad field request %r in %r" %(field,self.definitions))
+            if warning==True:
+                self.logger.warning("bad field request %r in %r" %(field,self.definitions))
             return False
 
         #get definitions from jsd file

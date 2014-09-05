@@ -320,7 +320,7 @@ def restoreFileMaybe(file):
         pass
 
 #main function
-if True:
+if __name__ == "__main__":
     argvc = 1
     if not sys.argv[argvc]:
         print "selection of packages to set up (hltd and/or elastic) missing"

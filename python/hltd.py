@@ -1027,6 +1027,7 @@ class Run:
                         self.anelastic_monitor.wait()
                     else:
                         self.anelastic_monitor.terminate()
+                        self.anelastic_monitor.wait()
             except Exception as ex:
                 logging.info("exception encountered in shutting down anelastic.py "+ str(ex))
                 #logging.exception(ex)
@@ -1037,6 +1038,7 @@ class Run:
                             self.elastic_monitor.wait()
                         else:
                             self.elastic_monitor.terminate()
+                            self.elastic_monitor.wait()
                 except Exception as ex:
                     logging.info("exception encountered in shutting down elastic.py")
                     logging.exception(ex)
@@ -1405,6 +1407,69 @@ class RunRanger:
                     except Exception as ex:
                         logging.exception(ex)
 
+        elif dirname.startswith('suspend') and conf.role == 'fu':
+            for run in run_list:
+                run.Shutdown(False)#terminate all ongoing runs
+            run_list=[]
+
+            cleanup_mountpoints(remount=False)
+
+            #find out BU name from bus_config
+            bu_name=None
+            bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+            if os.path.exists(bus_config):
+                for line in open(bus_config):
+                    bu_name=line.split('.')[0]
+                    break
+
+            #first report to BU that umount was done
+            try:
+                if bu_name==None:
+                    logging.fatal("No BU name was found in the bus.config file. Leaving mount points unmounted until the hltd service restart.")
+                    os.remove(event.fullpath)
+                    return
+                connection = httplib.HTTPConnection(bu_name, 8005,timeout=5)
+                connection.request("GET",'cgi-bin/report_suspend_cgi.py?host='+os.uname()[1])
+                response = connection.getresponse()
+            except Exception as ex:
+                logging.error("Unable to report suspend state to BU "+str(bu_name)+":8005")
+                logging.exception(ex)
+
+            #loop while BU is not reachable
+            while True:
+                try:
+                    #reopen bus.config in case is modified or moved around
+                    bu_name=None
+                    bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+                    if os.path.exists(bus_config):
+                        try:
+                            for line in open(bus_config):
+                                bu_name=line.split('.')[0]
+                                break
+                        except:
+                            time.sleep(5)
+                            continue
+                    if bu_name==None:
+                        time.sleep(5)
+                        continue
+
+                    connection = httplib.HTTPConnection(bu_name, 8000,timeout=5)
+                    connection.request("GET",'cgi-bin/getcwd_cgi.py')
+                    response = connection.getresponse()
+                    #if we got here, the service is back up
+                    break
+                except socket.timeout:
+                    logging.info("BU "+bu_name+" socket timeout")
+                except socket.gaieror:
+                    logging.info("BU "+bu_name+" name unknown")
+                except socket.eror:
+                    logging.info("BU "+bu_name+" connection refused")
+
+            #mount again
+            cleanup_mountpoints()
+            os.remove(event.fullpath)
+            logging.info("Remount is performed")
+ 
         logging.debug("RunRanger completed handling of event "+event.fullpath)
 
     def process_default(self, event):

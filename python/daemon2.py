@@ -239,15 +239,19 @@ class Daemon2:
             except subprocess.CalledProcessError, err1:
                 pass
             except Exception as ex:
-                sys.stdout.write(str(ex)+"\n")
+                sys.stdout.write(ex.args[0]+"\n")
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,ramdisk_subdirectory)])
             except subprocess.CalledProcessError, err1:
                 sys.stdout.write("Error calling umount in cleanup_mountpoints\n")
                 sys.stdout.write(str(err1.returncode)+"\n")
+            except Exception as ex:
+                sys.stdout.write(ex.args[0]+"\n")
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,output_subdirectory)])
             except subprocess.CalledProcessError, err1:
                 sys.stdout.write("Error calling umount in cleanup_mountpoints\n")
                 sys.stdout.write(str(err1.returncode)+"\n")
+            except Exception as ex:
+                sys.stdout.write(ex.args[0]+"\n")
  
