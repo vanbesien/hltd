@@ -15,6 +15,7 @@ sys.path.append('/opt/fff')
 from setupmachine import FileManager
 
 hltdconf='/etc/hltd.conf'
+machine_is_bu=False
 
 watch_directory='/fff/ramdisk'
 try:
@@ -23,9 +24,13 @@ try:
         ls=l.strip(' ')
         if not ls.startswith('#') and ls.startswith('watch_directory'):
             watch_directory=ls.split('=')[1].strip()
+        if not ls.startswith('#') and ls.startswith('role'):
+            if ls.split('=')[1].strip()=='bu': machine_is_bu=True
     f.close()
 except Exception as ex:
     print "Unable to read watch_directory, using default: /fff/ramdisk"
+
+if machine_is_bu==False:sys.exit(0)
 
 boxinfodir=os.path.join(watch_directory,'appliance/boxes')
 
