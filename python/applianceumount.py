@@ -5,6 +5,7 @@ import subprocess
 import shutil
 import threading
 import time
+import httplib
 import cgitb
 import CGIHTTPServer
 import BaseHTTPServer
@@ -53,6 +54,7 @@ for machine in dirlist:
     #skip self
     if machine == myhost:continue
 
+    current_time = time.time()
     age = current_time - os.path.getmtime(os.path.join(boxinfodir,machine))
     print "found machine",machine," which is ",str(age)," seconds old"
     if age < 30:
@@ -116,6 +118,7 @@ try:
             usedTimeout+=2
             time.sleep(2)
             continue
+        else:break
 except:
     #handle interrupt
     print "Interrupted!"

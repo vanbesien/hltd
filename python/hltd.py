@@ -20,6 +20,7 @@ import httplib
 import demote
 import re
 import shutil
+import socket
 
 #modules distributed with hltd
 import prctl
@@ -45,6 +46,7 @@ bu_disk_list_ramdisk=[]
 bu_disk_list_output=[]
 active_runs=[]
 resource_lock = threading.Lock()
+suspended=False
 
 logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
@@ -105,6 +107,7 @@ def cleanup_mountpoints(remount=True):
         if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
         logging.info("cleanup_mountpoints: found following mount points ")
         logging.info(mounts)
+        umount_failure=False
         for point in mounts:
             logging.info("trying umount of "+point)
             try:
@@ -118,11 +121,13 @@ def cleanup_mountpoints(remount=True):
             except subprocess.CalledProcessError, err1:
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
+                umount_failure=True
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.output_subdirectory)])
             except subprocess.CalledProcessError, err1:
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
+                umount_failure=True
             #this will remove directories only if they are empty (as unomunted mount point should be)
             try:
                 if os.path.join('/'+point,conf.ramdisk_subdirectory)!='/':
@@ -140,7 +145,8 @@ def cleanup_mountpoints(remount=True):
             except Exception as ex:
                 logging.exception(ex)
         if remount==False:
-            return
+            if umount_failure:return False
+            return True
         i = 0
         bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
         if os.path.exists(bus_config):
@@ -212,12 +218,17 @@ def cleanup_mountpoints(remount=True):
 
 
                 i+=1
+        #clean up suspended state
+        try:
+            if remount==True:os.unlink(conf.watch_directory+'/suspend')
+        except:pass
     except Exception as ex:
         logging.error("Exception in cleanup_mountpoints")
         logging.exception(ex)
         if remount==True:
-            logging.fatal("Unable to handle (un)mounting - exiting.")
-            sys.exit(1)
+            logging.fatal("Unable to handle (un)mounting")
+            #sys.exit(1)
+        else:return False
 
 def calculate_threadnumber():
     global nthreads
@@ -263,10 +274,11 @@ class system_monitor(threading.Thread):
     def run(self):
         try:
             logging.debug('entered system monitor thread ')
+            global suspended
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
-
+                if suspended:continue
                 tstring = datetime.utcfromtimestamp(time.time()).isoformat()
 
                 fp = None
@@ -1408,11 +1420,21 @@ class RunRanger:
                         logging.exception(ex)
 
         elif dirname.startswith('suspend') and conf.role == 'fu':
+            logging.info('suspend mountpoints initiated')
+            global suspended
+            suspended=True
             for run in run_list:
                 run.Shutdown(False)#terminate all ongoing runs
             run_list=[]
+            time.sleep(.5)
+            umount_success = cleanup_mountpoints(remount=False)
 
-            cleanup_mountpoints(remount=False)
+            if umount_success==False:
+                logging.info("Suspend failed, preparing for harakiri...")
+                time.sleep(.1)
+                fp = open(os.path.join(os.path.dirname(event.fullpath.rstrip(os.path.sep)),'harakiri'),"w+")
+                fp.close()
+                return
 
             #find out BU name from bus_config
             bu_name=None
@@ -1447,27 +1469,33 @@ class RunRanger:
                                 bu_name=line.split('.')[0]
                                 break
                         except:
+                            logging.info('exception test 1')
                             time.sleep(5)
                             continue
                     if bu_name==None:
+                        logging.info('exception test 2')
                         time.sleep(5)
                         continue
 
+                    logging.info('checking if BU hltd is available...')
                     connection = httplib.HTTPConnection(bu_name, 8000,timeout=5)
                     connection.request("GET",'cgi-bin/getcwd_cgi.py')
                     response = connection.getresponse()
+                    logging.info('BU hltd is running !...')
                     #if we got here, the service is back up
                     break
-                except socket.timeout:
-                    logging.info("BU "+bu_name+" socket timeout")
-                except socket.gaieror:
-                    logging.info("BU "+bu_name+" name unknown")
-                except socket.eror:
-                    logging.info("BU "+bu_name+" connection refused")
+                except Exception as ex:
+                    try:
+                       logging.info('Failed to contact BU hltd service: ' + str(ex.args[0]) +" "+ str(ex.args[1]))
+                    except:
+                       logging.info('Failed to contact BU hltd service: ')
+                    time.sleep(5)
 
             #mount again
             cleanup_mountpoints()
-            os.remove(event.fullpath)
+            try:os.remove(event.fullpath)
+            except:pass
+            suspended=False
             logging.info("Remount is performed")
  
         logging.debug("RunRanger completed handling of event "+event.fullpath)

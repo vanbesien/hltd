@@ -223,7 +223,7 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 
 echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/applianceumount
 echo "#"                                 >> %{buildroot}/etc/init.d/applianceumount
-echo "# chkconfig:   2345 78 23"         >> %{buildroot}/etc/init.d/applianceumount
+echo "# chkconfig:   2345 78 23"           >> %{buildroot}/etc/init.d/applianceumount
 echo "#"                                 >> %{buildroot}/etc/init.d/applianceumount
 echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/applianceumount
 echo "  exit 0"                          >> %{buildroot}/etc/init.d/applianceumount
@@ -257,8 +257,10 @@ echo "fi"                                >> %{buildroot}/etc/init.d/applianceumo
 
 %post
 #echo "post install trigger"
-chkconfig fffmeta on
-chkconfig applianceumount on
+chkconfig --del fffmeta
+chkconfig --add fffmeta
+chkconfig --del applianceumount
+chkconfig --add applianceumount
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
@@ -273,7 +275,8 @@ echo /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1
 echo /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
 /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
 /sbin/service elasticsearch start
-chkconfig elasticsearch on
+chkconfig --del elasticsearch
+chkconfig --add elasticsearch
 
 #taskset elasticsearch process
 #sleep 1
@@ -302,15 +305,16 @@ fi
 /opt/hltd/python/fillresources.py
 
 /sbin/service hltd restart
-chkconfig hltd on
+chkconfig --del hltd
+chkconfig --add hltd
 %preun
 
 if [ \$1 == 0 ]; then 
 
-  chkconfig fffmeta off
-  chkconfig applianceumount off
-  chkconfig elasticsearch off
-  chkconfig hltd off
+  chkconfig --del fffmeta
+  chkconfig --del applianceumount
+  chkconfig --del elasticsearch
+  chkconfig --del hltd
 
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true

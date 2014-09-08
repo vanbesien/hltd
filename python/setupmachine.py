@@ -563,6 +563,7 @@ if __name__ == "__main__":
           pass
 
       #write bu ip address
+        print "WRITING BUS CONFIG ", busconfig
         f = open(busconfig,'w+')
         f.writelines(getIPs(buDataAddr)[0])
         f.close()
