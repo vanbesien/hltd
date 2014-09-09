@@ -1430,11 +1430,19 @@ class RunRanger:
             umount_success = cleanup_mountpoints(remount=False)
 
             if umount_success==False:
-                logging.info("Suspend failed, preparing for harakiri...")
-                time.sleep(.1)
-                fp = open(os.path.join(os.path.dirname(event.fullpath.rstrip(os.path.sep)),'harakiri'),"w+")
+                time.sleep(1)
+                logging.info("Suspend failed, trying again...")
+                #notifying itself again
+                try:os.remove(event.fullpath)
+                except:pass
+                fp = open(event.fullpath,"w+")
                 fp.close()
-                return
+                return 
+                #logging.info("Suspend failed, preparing for harakiri...")
+                #time.sleep(.1)
+                #fp = open(os.path.join(os.path.dirname(event.fullpath.rstrip(os.path.sep)),'harakiri'),"w+")
+                #fp.close()
+                #return
 
             #find out BU name from bus_config
             bu_name=None
