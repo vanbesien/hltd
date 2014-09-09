@@ -244,8 +244,9 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 #echo "post install trigger"
 chkconfig --del fffmeta
 chkconfig --add fffmeta
-chkconfig --del fffumountwatcher
-chkconfig --add fffumountwatcher
+#disabled, can be run manually for now
+#chkconfig --del fffumountwatcher
+#chkconfig --add fffumountwatcher
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
@@ -297,7 +298,7 @@ chkconfig --add hltd
 if [ \$1 == 0 ]; then 
 
   chkconfig --del fffmeta
-  chkconfig --del fffumountwatcher
+  #chkconfig --del fffumountwatcher
   chkconfig --del elasticsearch
   chkconfig --del hltd
 
