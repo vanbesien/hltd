@@ -1,5 +1,4 @@
 import sys, os, time, atexit
-import procname
 import subprocess
 from signal import SIGINT
 from aUtils import * #for stdout and stderr redirection
@@ -67,9 +66,6 @@ class Daemon2:
         os.dup2(se.fileno(), sys.stderr.fileno())
         sys.stderr = stdErrorLog()
         sys.stdout = stdOutLog()
-
-        #change process name
-        procname.setprocname(self.processname)
 
         # write pidfile
         atexit.register(self.delpid)

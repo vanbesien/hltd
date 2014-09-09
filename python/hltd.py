@@ -424,7 +424,7 @@ class OnlineResource:
     def NotifyNewRun(self,runnumber):
         self.runnumber = runnumber
         logging.info("calling start of run on "+self.cpu[0]);
-        connection = httplib.HTTPConnection(self.cpu[0], 8000)
+        connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
         connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
         response = connection.getresponse()
         #do something intelligent with the response code
@@ -434,7 +434,7 @@ class OnlineResource:
             logging.info(response.read())
 
     def NotifyShutdown(self):
-        connection = httplib.HTTPConnection(self.cpu[0], 8000)
+        connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
         connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
         time.sleep(0.05)
         response = connection.getresponse()
@@ -1368,7 +1368,7 @@ class RunRanger:
                         age = current_time - os.path.getmtime(boxdir+name)
                         logging.info('found box '+name+' with keepalive age '+str(age))
                         if age < 20:
-                            connection = httplib.HTTPConnection(name, 8000)
+                            connection = httplib.HTTPConnection(name, conf.cgi_port)
                             connection.request("GET",'cgi-bin/herod_cgi.py')
                             response = connection.getresponse()
                     logging.info("sent herod to all child FUs")
@@ -1450,11 +1450,11 @@ class RunRanger:
                     logging.fatal("No BU name was found in the bus.config file. Leaving mount points unmounted until the hltd service restart.")
                     os.remove(event.fullpath)
                     return
-                connection = httplib.HTTPConnection(bu_name, 8005,timeout=5)
+                connection = httplib.HTTPConnection(bu_name, conf.cgi_port+5,timeout=5)
                 connection.request("GET",'cgi-bin/report_suspend_cgi.py?host='+os.uname()[1])
                 response = connection.getresponse()
             except Exception as ex:
-                logging.error("Unable to report suspend state to BU "+str(bu_name)+":8005")
+                logging.error("Unable to report suspend state to BU "+str(bu_name)+':'+str(conf.cgi_port+5))
                 logging.exception(ex)
 
             #loop while BU is not reachable
@@ -1478,7 +1478,7 @@ class RunRanger:
                         continue
 
                     logging.info('checking if BU hltd is available...')
-                    connection = httplib.HTTPConnection(bu_name, 8000,timeout=5)
+                    connection = httplib.HTTPConnection(bu_name, conf.cgi_port,timeout=5)
                     connection.request("GET",'cgi-bin/getcwd_cgi.py')
                     response = connection.getresponse()
                     logging.info('BU hltd is running !...')

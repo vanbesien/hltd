@@ -1,6 +1,6 @@
 #!/bin/env python
 #
-# chkconfig:   2345 81 21
+# chkconfig:   2345 81 03
 #
 import os,sys
 sys.path.append('/opt/hltd/python')
@@ -8,12 +8,14 @@ sys.path.append('/opt/hltd/lib')
 from hltd import hltd
 from subprocess import Popen
 from subprocess import PIPE
-from applianceumount import *
+from applianceumount import stopFUs
+import time
+import syslog
 
 def touchLockFile():
-try:
-    with open('/var/lock/subsys/hltd',"w+") as fi:
-        pass
+    try:
+        with open('/var/lock/subsys/hltd',"w+") as fi:
+            pass
     except:
         pass
 
@@ -27,19 +29,46 @@ if __name__ == "__main__":
     daemon = hltd('/var/run/hltd.pid')
     if len(sys.argv) == 2:
         if 'start' == sys.argv[1]:
+            touchLockFile()
             output = Popen(["/opt/hltd/python/hltd.py"], stdout=PIPE).communicate()[0]
             if daemon.silentStatus():
                 print '[OK]'
             else:
                 print '[Failed]'
                 print output
-            touchLockFile()
         elif 'stop' == sys.argv[1]:
             if daemon.status():
                 daemon.stop()
             elif os.path.exists('/var/run/hltd.pid'):
                 daemon.delpid()
+
+            if stopFUs()==False:
+
+                #check runlevel
+                p = Popen("runlevel", shell=True, stdout=PIPE)
+                p.wait()
+                std_out=p.stdout.read()
+                from_level,to_level = std_out.split('\t')[0].rstrip('\n').strip().split(' ')
+                if to_level.isdigit() and int(to_level) in [0,1,6] and str(from_level)!="1":
+ 
+                    msg = "Shutdown or reboot is cancelled by hltd - FU umount failed! Switching to runlevel 3..."
+                    #p = Popen("wall "+msg, shell=True, stdout=PIPE)
+                    #p.wait()
+                    syslog.syslog(msg)
+                    time.sleep(2)
+                    p = Popen("init 3", shell=True, stdout=PIPE)
+                    p.wait()
+                else:
+                    print "FU umount failed (no shutdown or reboot of this node detected) !"
+            else:
+                removeLockFile()
+        elif 'stop-light' == sys.argv[1]:
+            if daemon.status():
+                daemon.stop()
+            elif os.path.exists('/var/run/hltd.pid'):
+                daemon.delpid()
             removeLockFile()
+ 
         elif 'restart' == sys.argv[1]:
             daemon.restart()
             touchLockFile()
@@ -53,5 +82,5 @@ if __name__ == "__main__":
         sys.exit(0)
 
     else:
-        print "usage: %s start|stop|restart|status" % sys.argv[0]
+        print "usage: %s start|stop|stop-light|restart|status" % sys.argv[0]
         sys.exit(2)

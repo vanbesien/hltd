@@ -151,13 +151,6 @@ Classifier: Topic :: System :: Filesystems
 Classifier: Topic :: System :: Monitoring
 EOF
 
-
-cd $TOPDIR
-cd opt/hltd/lib/procname-0.2/
-make
-cp procname.so $TOPDIR/usr/lib64/python2.6/site-packages
-
-
 cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
@@ -195,8 +188,6 @@ tar -C $TOPDIR -c opt/hltd | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c etc | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c usr | tar -xC \$RPM_BUILD_ROOT
 rm \$RPM_BUILD_ROOT/opt/hltd/python/setupmachine.py
-rm \$RPM_BUILD_ROOT/opt/hltd/python/applianceumount.py
-rm \$RPM_BUILD_ROOT/opt/hltd/python/fffumountwatcher
 %post
 rm -rf /etc/appliance/online/*
 rm -rf /etc/appliance/offline/*
@@ -215,7 +206,6 @@ rm -rf /etc/appliance/except/*
 /usr/lib64/python2.6/site-packages/*prctl*
 /usr/lib64/python2.6/site-packages/*watcher*
 /usr/lib64/python2.6/site-packages/*_inotify.so*
-/usr/lib64/python2.6/site-packages/procname.so*
 /usr/lib64/python2.6/site-packages/*python_inotify*
 /usr/lib64/python2.6/site-packages/pyelasticsearch
 %preun

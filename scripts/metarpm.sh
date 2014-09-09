@@ -164,10 +164,7 @@ Requires:elasticsearch >= 1.2.0, hltd >= 1.4.0, cx_Oracle >= 5.1.2, java-1.7.0-o
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py
-Provides:/opt/fff/applianceumount.py
-Provides:/opt/fff/cgi/report_suspend_cgi.py
 Provides:/etc/init.d/fffmeta
-Provides:/etc/init.d/fffumountwatcher
 
 #Provides:/opt/fff/backup/elasticsearch.yml
 #Provides:/opt/fff/backup/elasticsearch
@@ -183,19 +180,14 @@ fffmeta configuration setup package
 rm -rf \$RPM_BUILD_ROOT
 mkdir -p \$RPM_BUILD_ROOT
 %__install -d "%{buildroot}/opt/fff"
-%__install -d "%{buildroot}/opt/fff/cgi"
 %__install -d "%{buildroot}/opt/fff/backup"
 %__install -d "%{buildroot}/opt/fff/esplugins"
 %__install -d "%{buildroot}/etc/init.d"
 
 mkdir -p opt/fff/esplugins
 mkdir -p opt/fff/backup
-mkdir -p opt/fff/cgi
 mkdir -p etc/init.d/
 cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
-cp $BASEDIR/python/applianceumount.py %{buildroot}/opt/fff/applianceumount.py
-cp $BASEDIR/python/fffumountwatcher %{buildroot}/etc/init.d/fff/fffumountwatcher
-cp $BASEDIR/cgi/report_suspend_cgi.py %{buildroot}/opt/fff/cgi/report_suspend_cgi.py
 echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
 echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
 
@@ -227,15 +219,8 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 %attr( 755 ,root, root) /opt/fff/setupmachine.py
 %attr( 755 ,root, root) /opt/fff/setupmachine.pyc
 %attr( 755 ,root, root) /opt/fff/setupmachine.pyo
-%attr( 755 ,root, root) /opt/fff/applianceumount.py
-%attr( 755 ,root, root) /opt/fff/applianceumount.pyc
-%attr( 755 ,root, root) /opt/fff/applianceumount.pyo
-%attr( 755 ,root, root) /opt/fff/cgi/report_suspend_cgi.py
-%attr( 755 ,root, root) /opt/fff/cgi/report_suspend_cgi.pyc
-%attr( 755 ,root, root) /opt/fff/cgi/report_suspend_cgi.pyo
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
-%attr( 755 ,root, root) /etc/init.d/fffumountwatcher
 %attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1
 %attr( 755 ,root, root) /opt/fff/esplugins/install.sh
 %attr( 755 ,root, root) /opt/fff/esplugins/uninstall.sh
@@ -245,8 +230,6 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 chkconfig --del fffmeta
 chkconfig --add fffmeta
 #disabled, can be run manually for now
-#chkconfig --del fffumountwatcher
-#chkconfig --add fffumountwatcher
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
@@ -298,7 +281,6 @@ chkconfig --add hltd
 if [ \$1 == 0 ]; then 
 
   chkconfig --del fffmeta
-  #chkconfig --del fffumountwatcher
   chkconfig --del elasticsearch
   chkconfig --del hltd
 

@@ -11,16 +11,10 @@ import cgitb
 import CGIHTTPServer
 import BaseHTTPServer
 
-sys.path.append('/opt/fff')
-
-
-pidfile = '/var/run/fffumountwatcher.pid'
-
-from setupmachine import FileManager
-
 hltdconf='/etc/hltd.conf'
 watch_directory='/fff/ramdisk'
 machine_is_bu=False
+cgi_port=8000
 
 def parseConfiguration():
     try:
@@ -32,31 +26,11 @@ def parseConfiguration():
             if not ls.startswith('#') and ls.startswith('role'):
                 if ls.split('=')[1].strip()=='bu': machine_is_bu=True
                 if ls.split('=')[1].strip()=='fu': machine_is_fu=True
+            if not ls.startswith('#') and ls.startswith('cgi_port'):
+                cgi_port=int(ls.split('=')[1].strip())
         f.close()
     except Exception as ex:
         print "Unable to read watch_directory, using default: /fff/ramdisk"
-
-def getTimeString():
-    tzones = time.tzname
-    if len(tzones)>1:zone=str(tzones[1])
-    else:zone=str(tzones[0])
-    return str(time.strftime("%H:%M:%S"))+" "+time.strftime("%d-%b-%Y")+" "+zone
-
-def killPidMaybe():
-
-    try:
-        with open(pidfile,"r") as fi:
-            pid=int(fi.read())
-            try:
-                os.kill(pid,0)
-                print "process " + str(pid) + " is running\n"
-                os.kill(pid,9)
-                time.sleep(.1)
-            except:
-                print "process " + str(pid) + " is no running but pidfile present\n"
-        os.unlink(pidfile)
-    except:
-        pass
 
 class UmountResponseReceiver(threading.Thread):
 
@@ -76,11 +50,11 @@ class UmountResponseReceiver(threading.Thread):
             os.remove('cgi-bin')
             #if os.path.exists(watch_directory+'/cgi-bin'):
             #    os.remove(watch_directory+'/cgi-bin')
-            os.symlink('/opt/fff/cgi',watch_directory+'/cgi-bin')
+            os.symlink('/opt/hltd/cgi',watch_directory+'/cgi-bin')
 
             handler.cgi_directories = ['/cgi-bin']
-            print("starting http server on port "+str(8005))
-            self.httpd = BaseHTTPServer.HTTPServer(("", 8005), handler)
+            print("starting http server on port "+str(cgi_port+5))
+            self.httpd = BaseHTTPServer.HTTPServer(("", cgi_port+5), handler)
 
             self.httpd.serve_forever()
         except KeyboardInterrupt:
@@ -89,59 +63,15 @@ class UmountResponseReceiver(threading.Thread):
     def stop(self):
             self.httpd.shutdown()
 
-def start():
-    killPidMaybe()
-    #double fork and exit
-
-    try:
-        pid = os.fork()
-        if pid > 0:
-            # exit first parent
-            sys.exit(0)
-    except OSError, e:
-        sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
-        sys.exit(1)
-    # decouple from parent environment
-    os.chdir("/")
-    os.setsid()
-    os.umask(0)
-    # do second fork
-    try:
-        pid = os.fork()
-        if pid > 0:
-            # exit from second parent
-            sys.exit(0)
-    except OSError, e:
-        sys.stderr.write("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
-        sys.exit(1)
-
-    with open(pidfile,"w+") as fi:
-            fi.write(str(os.getpid()))
-
-   parseConfiguration()
-
-   if machine_is_bu==True:time.sleep(10)
-
-
-def stop():
-    killPidMaybe()
+def stopFUs():
     parseConfiguration()
-    if machine_is_bu==False:sys.exit(0)
+    if machine_is_bu==False:return True
     #continue with notifying FUs
     boxinfodir=os.path.join(watch_directory,'appliance/boxes')
 
     maxTimeout=120 #sec
 
     myhost = os.uname()[1]
-
-    #disable the hltd service
-    hltdcfg = FileManager(hltdconf,'=',True,' ',' ')
-    hltdcfg.reg('enabled','False','[General]')
-    hltdcfg.commit()
-
-    #stop the service
-    p = subprocess.Popen("/sbin/service hltd stop", shell=True, stdout=subprocess.PIPE)
-    p.wait()
 
     machinelist=[]
     dirlist = os.listdir(boxinfodir)
@@ -154,7 +84,7 @@ def stop():
         print "found machine",machine," which is ",str(age)," seconds old"
         if age < 30:
             try:
-                connection = httplib.HTTPConnection(machine, 8000,timeout=5)
+                connection = httplib.HTTPConnection(machine, cgi_port,timeout=5)
                 connection.request("GET",'cgi-bin/suspend_cgi.py')
                 response = connection.getresponse()
                 machinelist.append(machine)
@@ -188,6 +118,7 @@ def stop():
         print "Interrupted!"
         receiver.stop()
         receiver.join()
+        return False
 
     receiver.stop()
     receiver.join()
@@ -195,6 +126,7 @@ def stop():
     print "Finished FU suspend for:",machinelist-activeMachines
     if usedTimeout==maxTimeout:
         print "FU suspend failed for hosts:",activeMachines
+        return False
 
-def status():
-    pass
+    return True
+
