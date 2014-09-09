@@ -8,6 +8,20 @@ sys.path.append('/opt/hltd/lib')
 from hltd import hltd
 from subprocess import Popen
 from subprocess import PIPE
+from applianceumount import *
+
+def touchLockFile():
+try:
+    with open('/var/lock/subsys/hltd',"w+") as fi:
+        pass
+    except:
+        pass
+
+def removeLockFile():
+    try:
+        os.unlink('/var/lock/subsys/hltd')
+    except:
+        pass
 
 if __name__ == "__main__":
     daemon = hltd('/var/run/hltd.pid')
@@ -19,13 +33,16 @@ if __name__ == "__main__":
             else:
                 print '[Failed]'
                 print output
+            touchLockFile()
         elif 'stop' == sys.argv[1]:
             if daemon.status():
                 daemon.stop()
             elif os.path.exists('/var/run/hltd.pid'):
                 daemon.delpid()
+            removeLockFile()
         elif 'restart' == sys.argv[1]:
             daemon.restart()
+            touchLockFile()
         elif 'status' == sys.argv[1]:
             daemon.status()
         else:

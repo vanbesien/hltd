@@ -1,6 +1,7 @@
 #!/bin/env python
 
 import os,sys,socket
+import errno
 import subprocess
 import shutil
 import threading
@@ -18,8 +19,22 @@ pidfile = '/var/run/fffumountwatcher.pid'
 from setupmachine import FileManager
 
 hltdconf='/etc/hltd.conf'
+watch_directory='/fff/ramdisk'
 machine_is_bu=False
 
+def parseConfiguration():
+    try:
+        f=open(hltdconf)
+        for l in f.readlines():
+            ls=l.strip(' ')
+            if not ls.startswith('#') and ls.startswith('watch_directory'):
+                watch_directory=ls.split('=')[1].strip()
+            if not ls.startswith('#') and ls.startswith('role'):
+                if ls.split('=')[1].strip()=='bu': machine_is_bu=True
+                if ls.split('=')[1].strip()=='fu': machine_is_fu=True
+        f.close()
+    except Exception as ex:
+        print "Unable to read watch_directory, using default: /fff/ramdisk"
 
 def getTimeString():
     tzones = time.tzname
@@ -42,8 +57,6 @@ def killPidMaybe():
         os.unlink(pidfile)
     except:
         pass
-
-
 
 class UmountResponseReceiver(threading.Thread):
 
@@ -80,7 +93,6 @@ def start():
     killPidMaybe()
     #double fork and exit
 
-
     try:
         pid = os.fork()
         if pid > 0:
@@ -106,29 +118,16 @@ def start():
     with open(pidfile,"w+") as fi:
             fi.write(str(os.getpid()))
 
-    while True: time.sleep(10)
- 
+   parseConfiguration()
+
+   if machine_is_bu==True:time.sleep(10)
+
 
 def stop():
     killPidMaybe()
-
-    #continue with notifying FUs
-    machine_is_bu=False
-    watch_directory='/fff/ramdisk'
-    try:
-        f=open(hltdconf)
-        for l in f.readlines():
-            ls=l.strip(' ')
-            if not ls.startswith('#') and ls.startswith('watch_directory'):
-                watch_directory=ls.split('=')[1].strip()
-            if not ls.startswith('#') and ls.startswith('role'):
-                if ls.split('=')[1].strip()=='bu': machine_is_bu=True
-        f.close()
-    except Exception as ex:
-        print "Unable to read watch_directory, using default: /fff/ramdisk"
-
+    parseConfiguration()
     if machine_is_bu==False:sys.exit(0)
-
+    #continue with notifying FUs
     boxinfodir=os.path.join(watch_directory,'appliance/boxes')
 
     maxTimeout=120 #sec
