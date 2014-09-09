@@ -167,7 +167,7 @@ Provides:/opt/fff/setupmachine.py
 Provides:/opt/fff/applianceumount.py
 Provides:/opt/fff/cgi/report_suspend_cgi.py
 Provides:/etc/init.d/fffmeta
-Provides:/etc/init.d/applianceumount
+Provides:/etc/init.d/fffumountwatcher
 
 #Provides:/opt/fff/backup/elasticsearch.yml
 #Provides:/opt/fff/backup/elasticsearch
@@ -191,8 +191,10 @@ mkdir -p \$RPM_BUILD_ROOT
 mkdir -p opt/fff/esplugins
 mkdir -p opt/fff/backup
 mkdir -p opt/fff/cgi
+mkdir -p etc/init.d/
 cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
 cp $BASEDIR/python/applianceumount.py %{buildroot}/opt/fff/applianceumount.py
+cp $BASEDIR/python/fffumountwatcher %{buildroot}/etc/init.d/fff/fffumountwatcher
 cp $BASEDIR/cgi/report_suspend_cgi.py %{buildroot}/opt/fff/cgi/report_suspend_cgi.py
 echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
 echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
@@ -201,8 +203,6 @@ cp $BASEDIR/esplugins/$pluginfile1 %{buildroot}/opt/fff/esplugins/$pluginfile1
 cp $BASEDIR/esplugins/install.sh %{buildroot}/opt/fff/esplugins/install.sh
 cp $BASEDIR/esplugins/uninstall.sh %{buildroot}/opt/fff/esplugins/uninstall.sh
 
-
-mkdir -p etc/init.d/
 echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
 echo "# chkconfig:   2345 79 22"         >> %{buildroot}/etc/init.d/fffmeta
@@ -221,21 +221,6 @@ echo "  exit 0"                          >> %{buildroot}/etc/init.d/fffmeta
 echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 
 
-echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/applianceumount
-echo "#"                                 >> %{buildroot}/etc/init.d/applianceumount
-echo "# chkconfig:   2345 78 23"           >> %{buildroot}/etc/init.d/applianceumount
-echo "#"                                 >> %{buildroot}/etc/init.d/applianceumount
-echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/applianceumount
-echo "  exit 0"                          >> %{buildroot}/etc/init.d/applianceumount
-echo "fi"                                >> %{buildroot}/etc/init.d/applianceumount
-echo "if [ \\\$1 == \"status\" ]; then"  >> %{buildroot}/etc/init.d/applianceumount
-echo "  exit 0"                          >> %{buildroot}/etc/init.d/applianceumount
-echo "fi"                                >> %{buildroot}/etc/init.d/applianceumount
-echo "if [ \\\$1 == \"stop\" ]; then"    >> %{buildroot}/etc/init.d/applianceumount
-echo "python /opt/fff/applianceumount.py">> %{buildroot}/etc/init.d/applianceumount
-echo "  exit 0"                          >> %{buildroot}/etc/init.d/applianceumount
-echo "fi"                                >> %{buildroot}/etc/init.d/applianceumount
-
 %files
 %defattr(-, root, root, -)
 #/opt/fff
@@ -250,7 +235,7 @@ echo "fi"                                >> %{buildroot}/etc/init.d/applianceumo
 %attr( 755 ,root, root) /opt/fff/cgi/report_suspend_cgi.pyo
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
-%attr( 755 ,root, root) /etc/init.d/applianceumount
+%attr( 755 ,root, root) /etc/init.d/fffumountwatcher
 %attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1
 %attr( 755 ,root, root) /opt/fff/esplugins/install.sh
 %attr( 755 ,root, root) /opt/fff/esplugins/uninstall.sh
@@ -259,8 +244,8 @@ echo "fi"                                >> %{buildroot}/etc/init.d/applianceumo
 #echo "post install trigger"
 chkconfig --del fffmeta
 chkconfig --add fffmeta
-chkconfig --del applianceumount
-chkconfig --add applianceumount
+chkconfig --del fffumountwatcher
+chkconfig --add fffumountwatcher
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
@@ -312,7 +297,7 @@ chkconfig --add hltd
 if [ \$1 == 0 ]; then 
 
   chkconfig --del fffmeta
-  chkconfig --del applianceumount
+  chkconfig --del fffumountwatcher
   chkconfig --del elasticsearch
   chkconfig --del hltd
 
