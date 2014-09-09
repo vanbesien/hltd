@@ -1431,7 +1431,7 @@ class RunRanger:
 
             if umount_success==False:
                 time.sleep(1)
-                logging.info("Suspend failed, trying again...")
+                logging.error("Suspend initiated from BU failed, trying again...")
                 #notifying itself again
                 try:os.remove(event.fullpath)
                 except:pass
