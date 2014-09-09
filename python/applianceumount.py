@@ -10,6 +10,7 @@ import httplib
 import cgitb
 import CGIHTTPServer
 import BaseHTTPServer
+import syslog
 
 hltdconf='/etc/hltd.conf'
 watch_directory='/fff/ramdisk'
@@ -116,6 +117,7 @@ def stopFUs():
     except:
         #handle interrupt
         print "Interrupted!"
+        syslog.syslog("hltd: FU suspend was interrupted")
         receiver.stop()
         receiver.join()
         return False
@@ -126,6 +128,7 @@ def stopFUs():
     print "Finished FU suspend for:",machinelist-activeMachines
     if usedTimeout==maxTimeout:
         print "FU suspend failed for hosts:",activeMachines
+        syslog.syslog("hltd: FU suspend failed for hosts"+str(activeMachines))
         return False
 
     return True
