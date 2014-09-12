@@ -87,11 +87,11 @@ class elasticCollector():
                     pass
                 self.movedPathLegend = True
             elif filetype == HLTRATES:
-                self.logger.info('received json HLT rates')
+                self.logger.debug('received json HLT rates')
                 infile.setJsdfile(self.jsdfileHLTRates)
                 self.elasticize()
             if filetype == HLTRATESJSD and not self.jsdfileHLTRates:
-                self.logger.info('received jsd HLT rates')
+                self.logger.info('received jsd HLT rates JSD')
                 self.jsdfileHLTRates=infile.filepath
  
 
