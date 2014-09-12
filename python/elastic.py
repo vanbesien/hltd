@@ -25,6 +25,8 @@ class elasticCollector():
         self.inputMonDir = inMonDir
         self.movedModuleLegend = False
         self.movedPathLegend = False
+        self.processedHLTRatesLegend = False
+        self.jsdfileHLTRates = None
 
     def start(self):
         self.run()
@@ -84,6 +86,14 @@ class elasticCollector():
                     logger.error(ex)
                     pass
                 self.movedPathLegend = True
+            elif filetype == HLTRATES:
+                self.logger.info('received json HLT rates')
+                infile.setJsdfile(self.jsdfileHLTRates)
+                self.elasticize()
+            if filetype == HLTRATESJSD and not self.jsdfileHLTRates:
+                self.logger.info('received jsd HLT rates')
+                self.jsdfileHLTRates=infile.filepath
+ 
 
     def elasticize(self):
         infile = self.infile
@@ -116,6 +126,12 @@ class elasticCollector():
                 es.elasticize_fu_complete(completed)
                 self.infile.deleteFile()
                 self.stop()
+            elif filetype == HLTRATES:
+                self.logger.info(name+" going into hlt-rates")
+                if es.elasticize_hltrates(infile,self.processedHLTRatesLegend==False):
+                    self.processedHLTRatesLegend=True
+                self.infile.deleteFile()
+ 
 
     def elasticizeLS(self):
         ls = self.infile.ls
