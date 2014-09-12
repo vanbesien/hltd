@@ -22,6 +22,14 @@ def writeToFile(filename,content):
         return "Failed to write data: "+str(ex)
 
 
+def createDirectory(dirname):
+    try:
+        os.mkdir(dirname)
+        return "Success"
+    except OSError as ex:
+        return "Failed to create directory: "+str(ex)
+
+
 class Soap2file(Daemon2):
 
     def __init__(self,pidfile):
@@ -36,6 +44,7 @@ class Soap2file(Daemon2):
 
         server = SOAPpy.SOAPServer((self._hostname, self._conf.soap2file_port))
         server.registerFunction(writeToFile)
+        server.registerFunction(createDirectory)
         server.serve_forever()
 
 
