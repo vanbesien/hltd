@@ -1,4 +1,7 @@
 #!/bin/env python
+#
+# chkconfig:   2345 81 03
+#
 
 import os
 import pwd

@@ -275,7 +275,9 @@ fi
 
 /sbin/service hltd restart
 chkconfig --del hltd
+#chkconfig --del soap2file
 chkconfig --add hltd
+#chkconfig --add soap2file
 %preun
 
 if [ \$1 == 0 ]; then 
@@ -283,6 +285,7 @@ if [ \$1 == 0 ]; then
   chkconfig --del fffmeta
   chkconfig --del elasticsearch
   chkconfig --del hltd
+#  chkconfig --del soap2file
 
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true
