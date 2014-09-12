@@ -216,19 +216,19 @@ class elasticBand():
                     'source' : {'type' : 'string'}#,"index" : "not_analyzed"}
                 }
             },
-            'hltrates-legend': {
-                'properties': {
-                    'path-names'  : {'type' : 'string','index':'not_analyzed'}
-                }
-            },
-            'hltrates': {
-                'properties': {
-                    'ls' : {'type' : 'integer'},
-                    'pid' : {'type' : 'integer'},
-                    'processed' : {'type' : 'integer'},
-                    'path-accepted'  : {'type' : 'integer'}
-                }
-            },
+            #'hltrates-legend': {
+            #    'properties': {
+            #        'path-names'  : {'type' : 'string','index':'not_analyzed'}
+            #    }
+            #},
+            #'hltrates': {
+            #    'properties': {
+            #        'ls' : {'type' : 'integer'},
+            #        'pid' : {'type' : 'integer'},
+            #        'processed' : {'type' : 'integer'},
+            #        'path-accepted'  : {'type' : 'integer'}
+            #    }
+            #},
             'cmsswlog' : {
                 '_timestamp' : { 
                     'enabled'   : True,
@@ -406,23 +406,23 @@ class elasticBand():
         #os.remove(path+'/'+file)
         #return int(ls[2:])
 
-    def elasticize_hltrates(self,infile,writeLegend):
-        document,ret = self.imbue_jsn(infile)
-        if ret<0:return False
-        if writeLegend:
-            legend = []
-            for item in infile.definitions:
-                if item['name']!='Processed': legend.append(item['name'])
-            datadict={'path-names':legend}
-            self.es.index(self.indexName,'hltrates-legend',datadict)
-            
-        datadict={}
-        datadict['ls'] = int(infile.ls[2:])
-        datadict['pid'] = int(infile.pid[3:])
-        datadict['path-accepted']=document['data'][1:]
-        datadict['processed']=document['data'][0]
-        self.es.index(self.indexName,'hltrates',datadict)
-        return True
+    #def elasticize_hltrates(self,infile,writeLegend):
+    #    document,ret = self.imbue_jsn(infile)
+    #    if ret<0:return False
+    #    if writeLegend:
+    #        legend = []
+    #        for item in infile.definitions:
+    #            if item['name']!='Processed': legend.append(item['name'])
+    #        datadict={'path-names':legend}
+    #        self.es.index(self.indexName,'hltrates-legend',datadict)
+    #        
+    #    datadict={}
+    #    datadict['ls'] = int(infile.ls[2:])
+    #    datadict['pid'] = int(infile.pid[3:])
+    #    datadict['path-accepted']=document['data'][1:]
+    #    datadict['processed']=document['data'][0]
+    #    self.es.index(self.indexName,'hltrates',datadict)
+    #    return True
  
     def elasticize_fu_complete(self,timestamp):
         document = {}
