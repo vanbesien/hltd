@@ -63,6 +63,7 @@ class elasticBandBU:
         self.stopping=False
         self.threadEvent = threading.Event()
         self.runMode=runMode
+        self.boxinfoFUMap = {}
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -199,7 +200,8 @@ class elasticBandBU:
               'totalRamdisk'  :{'type':'integer'},
               'usedOutput'    :{'type':'integer'},
               'totalOutput'   :{'type':'integer'},
-              'activeRuns'    :{'type':'string'}
+              'activeRuns'    :{'type':'string'},
+              'hosts'         :{'type':'string',"index":"not_analyzed"}
               },
             '_timestamp' : { 
               'enabled'   : True,
@@ -357,19 +359,42 @@ class elasticBandBU:
 
         basename = infile.basename
         self.logger.debug(basename)
-        try:
-            document = infile.data
-            #TODO:let dynamic ID
-            document['id']= basename + '_' + document['fm_date'].split('.')[0] #TODO:remove
-            documents = [document]
-        except:
-            #in case of malformed box info
-            return
-        self.index_documents('boxinfo',documents)
-        #self.logger.info(str(document))#check that ID is not present...
-        #TODO:write unique boxinfo
-        #documents[0]['id']=basename
-        #self.index_documents('boxinfo_last',documents)
+        if basename.startswith('fu'):
+            try:
+                #document = infile.data
+                #self.boxinfoFUMap[basename] = document
+                self.boxinfoFUMap[basename] = infile.data
+                #documents = [document]
+            except:
+                return
+        elif basename.startswith('bu'):
+            try:
+                document = infile.data
+                document['id']= basename + '_' + document['fm_date'].split('.')[0]
+
+                document['idles']=0
+                document['broken']=0
+                document['quarantined']=0
+                document['usedDataDir']=0
+                document['usedDataDir']=0
+                document['hosts']=[basename]
+                for key in self.boxinfoFUMap:
+                        d = document[key]
+                        document['idles']+=int(d['idles'])
+                        document['broken']+=int(d['broken'])
+                        document['quarantined']+=int(d['quarantined'])
+                        document['usedDataDir']+=int(d['usedDataDir'])
+                        document['usedDataDir']+=int(d['totalDataDir'])
+                        document['hosts'].append(key)
+                documents = [document]
+                self.index_documents('boxinfo',documents)
+            except Exception as ex:
+                #in case of malformed box info
+                self.logger.warning('box info not injected: '+str(ex))
+                return
+            #index unique box info
+            documents[0]['id']=basename
+            self.index_documents('boxinfo_last',documents)
 
     def elasticize_eols(self,infile):
         basename = infile.basename
