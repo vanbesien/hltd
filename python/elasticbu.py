@@ -325,6 +325,8 @@ class elasticCollectorBU():
     def run(self):
         self.logger.info("Start main loop")
         count = 0
+        indexed_runend=False
+        timeout_start=None
         while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
             if self.source:
                 try:
@@ -332,8 +334,13 @@ class elasticCollectorBU():
                     self.eventtype = event.mask
                     self.infile = fileHandler(event.fullpath)
                     self.emptyQueue.clear()
-                    self.process() 
+                    if timeout_start != None:
+                        timeout_start=time.time()
+                    self.process()
                 except (KeyboardInterrupt,Queue.Empty) as e:
+                    if timeout_start != None:
+                        #exit after 10 min if no new files seen
+                        if time.time()-timeout_start>600:break
                     self.emptyQueue.set()
                 except (ValueError,IOError) as ex:
                     self.logger.exception(ex)
@@ -341,13 +348,16 @@ class elasticCollectorBU():
                 time.sleep(1.0)
             #check for EoR file every 5 intervals
             count+=1
-            if (count%5) == 0:
+            if indexed_runend==False and (count%5) == 0:
                 if os.path.exists(self.eorCheckPath):
                     if es:
                         dt=os.path.getctime(self.eorCheckPath)
                         endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
                         es.elasticize_runend_time(endtime)
-                    break
+                    indexed_runend=True
+                    #start checking if idle
+                    timeout_start = time.time()
+                    continue
                 if False==os.path.exists(self.eorCheckPath[:self.eorCheckPath.rfind('/')]):
                     #run dir deleted
                     break
