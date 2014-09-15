@@ -16,7 +16,13 @@ import hltdconf
 from daemon2 import Daemon2
 
 
-def writeToFile(filename,content):
+def writeToFile(filename,content,overwrite):
+    try:
+        os.stat(filename)
+        #file exists
+        if overwrite=="False":return
+    except:
+        pass
     try:
         with open(filename,'w') as file:
             file.write(content)

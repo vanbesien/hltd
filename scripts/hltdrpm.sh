@@ -171,6 +171,7 @@ Provides:/opt/hltd
 Provides:/etc/hltd.conf
 Provides:/etc/logrotate.d/hltd
 Provides:/etc/init.d/hltd
+Provides:/etc/init.d/soap2file
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
 Requires:python,libcap,python-six,python-requests,SOAPpy,python-simplejson >= 3.3.1
 
@@ -203,6 +204,7 @@ rm -rf /etc/appliance/except/*
 /etc/hltd.conf
 /etc/logrotate.d/hltd
 /etc/init.d/hltd
+/etc/init.d/soap2file
 /etc/appliance
 /usr/lib64/python2.6/site-packages/*prctl*
 /usr/lib64/python2.6/site-packages/*watcher*
