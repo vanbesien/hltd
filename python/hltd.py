@@ -182,7 +182,7 @@ def cleanup_mountpoints(remount=True):
                     logging.fatal('hltd was unable to ping BU '+line.strip())
                     sys.exit(1)
                 else:
-                    logging.info("trying to mount "+line.strip()+':/ '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
+                    logging.info("trying to mount "+line.strip()+':/fff/'+conf.ramdisk_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                     try:
                         subprocess.check_call(
                             [conf.mount_command,
@@ -199,7 +199,7 @@ def cleanup_mountpoints(remount=True):
                         logging.fatal("Unable to mount ramdisk - exiting.")
                         sys.exit(1)
 
-                    logging.info("trying to mount "+line.strip()+': '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
+                    logging.info("trying to mount "+line.strip()+':/fff/'+conf.output_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
                     try:
                         subprocess.check_call(
                             [conf.mount_command,

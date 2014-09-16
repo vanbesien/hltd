@@ -67,10 +67,6 @@ def stopFUs():
         f.close()
     except Exception as ex:
         print "Unable to read parameters",str(ex),"using defaults"
-    print machine_is_bu,machine_is_fu
-
-
-
 
     if machine_is_bu==False:return True
     #continue with notifying FUs
