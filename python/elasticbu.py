@@ -107,12 +107,12 @@ class elasticBandBU:
                 if "IndexAlreadyExistsException" in str(ex):
                     self.logger.info(ex)
                     if check_mapping:
-                        self.createDocMappingsMaybe(index_name,mapping)
+                        self.createDocMappingsMaybe(alias_write,mapping)
                     break
                 if "InvalidIndexNameException" in str(ex):
                     self.logger.info(ex)
                     if check_mapping:
-                        self.createDocMappingsMaybe(index_name,mapping)
+                        self.createDocMappingsMaybe(alias_write,mapping)
                     break
                 else:
                     self.logger.error(ex)

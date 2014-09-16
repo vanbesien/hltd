@@ -117,11 +117,11 @@ class fileHandler(object):
                 elif "CRASH" in name and "_PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
-        #if ext==".jsd" and name.startswith("HLTRATES"): return HLTRATESJSD
+        if ext==".jsd" and name.startswith("HLTRATES"): return HLTRATESJSD
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
             if "STREAM" in name and "_PID" not in name: return OUTPUT
-            #if name.startswith("HLTRATES"): return  HLTRATES
+            if name.startswith("HLTRATES"): return  HLTRATES
         if ext==".pb":
             if "_PID" not in name: return PB
             else: return PIDPB
@@ -144,7 +144,7 @@ class fileHandler(object):
         elif filetype in [DAT,PB,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
-        #elif filetype == HLTRATES:ftype,self.run,self.ls,self.pid = splitname
+        elif filetype == HLTRATES:ftype,self.run,self.ls,self.pid = splitname
         else: 
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3
