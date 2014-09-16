@@ -705,20 +705,19 @@ class HLTDLogIndex():
         self.host = os.uname()[1]
         self.threadEvent = threading.Event()
 
-        if 'localhost' in es_server_url:
-            nshards = 16
-            self.index_name = 'hltdlogs_'+conf.elastic_cluster
-        else:
-            nshards=1
-            index_suffix = conf.elastic_runindex_name.strip()
-            if index_suffix.startswith('runindex_'):
-                index_suffix=index_suffix[index_suffix.find('_'):]
-            elif index_suffix=='runindex':
-                index_suffix=""
-            elif index_suffix.startswith('runindex'):
-                index_suffix='_'+index_suffix[8:]
-            else: index_suffix='_'+index_suffix
-            self.index_name = 'hltdlogs'+index_suffix
+        #if 'localhost' in es_server_url:
+        #    nshards = 16
+        #    self.index_name = 'hltdlogs_'+conf.elastic_cluster
+        #else:
+        index_suffix = conf.elastic_runindex_name.strip()
+        if index_suffix.startswith('runindex_'):
+            index_suffix=index_suffix[index_suffix.find('_'):]
+        elif index_suffix=='runindex':
+            index_suffix=""
+        elif index_suffix.startswith('runindex'):
+            index_suffix='_'+index_suffix[8:]
+        else: index_suffix='_'+index_suffix
+        self.index_name = 'hltdlogs'+index_suffix+"_write" #using write alias
 
         attempts=10
         while True:
