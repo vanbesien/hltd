@@ -66,8 +66,8 @@ class elasticBandBU:
         self.runMode=runMode
         self.boxinfoFUMap = {}
         self.ip_url=None
-        self.createIndexMaybe(self.runindex_name,self.runindex_write,self.runindex_read,mappings.central_es_settings,mappings.central_runindex_mapping)
-        self.createIndexMaybe(self.boxinfo_name,self.boxinfo_write,self.boxinfo_read,mappings.central_es_settings,mappings.central_boxinfo_mapping,True)
+        self.updateIndexMaybe(self.runindex_name,self.runindex_write,self.runindex_read,mappings.central_es_settings,mappings.central_runindex_mapping)
+        self.updateIndexMaybe(self.boxinfo_name,self.boxinfo_write,self.boxinfo_read,mappings.central_es_settings,mappings.central_boxinfo_mapping)
 
         #write run number document
         if runMode == True and self.stopping==False:
@@ -81,7 +81,7 @@ class elasticBandBU:
             #    pass
 
 
-    def createIndexMaybe(self,index_name,alias_write,alias_read,settings,mapping,check_mapping=False):
+    def updateIndexMaybe(self,index_name,alias_write,alias_read,settings,mapping):
         connectionAttempts=0
         retry=False
         while True:
@@ -94,37 +94,21 @@ class elasticBandBU:
 
                 #check if runindex alias exists
                 self.logger.info('writing to elastic index '+alias_write)
-                if not requests.get(self.es_server_url+'/_alias/'+alias_write).status_code == 200: 
-                    self.es.create_index(index_name, settings={ 'settings': settings, 'mappings': mapping })
-                    aliases_settings = { "actions": [
-                                        {"add": {"index": index_name, "alias": alias_write}},
-                                        {"add": {"index": index_name, "alias": alias_read}}
-                                    ]}
-                    self.es.update_aliases(aliases_settings)
+                if requests.get(self.es_server_url+'/_alias/'+alias_write).status_code == 200: 
+                    self.createDocMappingsMaybe(alias_write,mapping)
                 break
             except ElasticHttpError as ex:
-                #this is normally fine as the index gets created somewhere across the cluster
-                if "IndexAlreadyExistsException" in str(ex):
-                    self.logger.info(ex)
-                    if check_mapping:
-                        self.createDocMappingsMaybe(alias_write,mapping)
-                    break
-                if "InvalidIndexNameException" in str(ex):
-                    self.logger.info(ex)
-                    if check_mapping:
-                        self.createDocMappingsMaybe(alias_write,mapping)
-                    break
+                #es error, retry
+                self.logger.error(ex)
+                if self.runMode and connectionAttempts>100:
+                    self.logger.error('elastic (BU): exiting after 100 ElasticHttpError reports from '+ self.es_server_url)
+                    sys.exit(1)
+                elif self.runMode==False and connectionAttempts>10:
+                    self.threadEvent.wait(60)
                 else:
-                    self.logger.error(ex)
-                    if self.runMode and connectionAttempts>100:
-                        self.logger.error('elastic (BU): exiting after 100 ElasticHttpError reports from '+ self.es_server_url)
-                        sys.exit(1)
-                    elif self.runMode==False and connectionAttempts>10:
-                        self.threadEvent.wait(60)
-                    else:
-                        self.threadEvent.wait(1)
-                    retry=True
-                    continue
+                    self.threadEvent.wait(1)
+                retry=True
+                continue
 
             except (ConnectionError,Timeout) as ex:
                 #try to reconnect with different IP from DNS load balancing
@@ -141,15 +125,11 @@ class elasticBandBU:
     def createDocMappingsMaybe(self,index_name,mapping):
         #update in case of new documents added to mapping definition
         for key in mapping:
-            try:
-                doc = mapping[key]
-                res = requests.get(self.es_server_url+'/'+index_name+'/'+key+'/_mapping')
-                #only update if mapping is empty
-                if res.status_code==200 and res.content.strip()=='{}':
-                    requests.post(self.es_server_url+'/'+index_name+'/'+key+'/_mapping',str(doc))
-            except:
-                #the document already exists
-                pass
+            doc = mapping[key]
+            res = requests.get(self.ip_url+'/'+index_name+'/'+key+'/_mapping')
+            #only update if mapping is empty
+            if res.status_code==200 and res.content.strip()=='{}':
+                requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',str(doc))
 
     def resetURL(url):
         self.es = None

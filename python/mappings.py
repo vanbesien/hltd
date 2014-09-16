@@ -21,6 +21,29 @@ central_es_settings = {
             },
         }
 
+
+central_es_settings_hltlogs = {
+            "analysis":{
+                "analyzer": {
+                    "prefix-test-analyzer": {
+                        "type": "custom",
+                        "tokenizer": "prefix-test-tokenizer"
+                    }
+                },
+                "tokenizer": {
+                    "prefix-test-tokenizer": {
+                        "type": "path_hierarchy",
+                        "delimiter": "_"
+                    }
+                }
+            },
+            "index":{
+                'number_of_shards' : 20,
+                'number_of_replicas' : 1
+            }
+        }
+ 
+
 central_runindex_mapping = {
             'run' : {
 #                '_routing' :{
@@ -194,4 +217,27 @@ central_boxinfo_mapping = {
             }
           
           }
+
+
+central_hltdlogs_mapping = {
+            'hltdlog' : {
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes"
+                },
+                #'_ttl'       : { 'enabled' : True,
+                #              'default' :  '30d'}
+                #,
+                'properties' : {
+                    'host'      : {'type' : 'string'},
+                    'type'      : {'type' : 'string',"index" : "not_analyzed"},
+                    'severity'  : {'type' : 'string',"index" : "not_analyzed"},
+                    'severityVal'  : {'type' : 'integer'},
+                    'message'   : {'type' : 'string'},
+                    'lexicalId' : {'type' : 'string',"index" : "not_analyzed"},
+                    'msgtime' : {'type' : 'date','format':'YYYY-mm-dd HH:mm:ss'},
+                 }
+            }
+        }
+
 

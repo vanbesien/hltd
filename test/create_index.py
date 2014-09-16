@@ -20,10 +20,10 @@ if len(sys.argv)>=4:
   server_url=sys.argv[2]
   index_name=sys.argv[3]
 else:
-  print "Parameters: command[create,alias,mapping] server url, index name"
+  print "Parameters: command[create,alias,mapping] server url, index.alias name (target index)"
   print "  COMMANDS:"
   print "    create: create index"
-  print "    alias: create index *_read and *_write aliases"
+  print "    alias: create index *_read and *_write aliases (optional parameter: target index)"
   print "    create missing document mappings for the index"
   sys.exit(1)
 
@@ -35,28 +35,39 @@ es = ElasticSearch(server_url)
 
 #pick mapping
 if index_name.startswith('runindex'):
+  my_settings = mappings.central_es_settings
   my_mapping = mappings.central_runindex_mapping
 if index_name.startswith('boxinfo'):
+  my_settings = mappings.central_es_settings,
   my_mapping = mappings.central_boxinfo_mapping
+if index_name.startswith('hltdlogs'):
+  my_settings = mappings.central_es_settings_hltlogs
+  my_mapping = mappings.central_hltdlogs_mapping
 
 #alias convention
 alias_write=index_name+"_write"
 alias_read=index_name+"_read"
 
 if command=='create':
-  es.create_index(index_name, settings={ 'settings': mappings.central_es_settings, 'mappings': my_mapping })
+  es.create_index(index_name, settings={ 'settings': my_settings, 'mappings': my_mapping })
 
 if command=='alias':
+
+  try:
+    target_index = sys.argv[4]
+  except:
+    target_index = index_name
+
   #check if alias exists
   status1 = requests.get(server_url+'/_alias/'+alias_write).status_code
   status2 = requests.get(server_url+'/_alias/'+alias_read).status_code
   aliases_settings = { "actions": []}
   if status1!=200:
-    alias_settings["actions"].append({"add": {"index": index_name, "alias": alias_write}})
+    alias_settings["actions"].append({"add": {"index": target_index, "alias": alias_write}})
   else:
     print alias_write,"already exists"
   if status2!=200:
-    alias_settings["actions"].append({"add": {"index": index_name, "alias": alias_read}})
+    alias_settings["actions"].append({"add": {"index": target_index, "alias": alias_read}})
   else:
     print alias_read,"already exists"
   if len(alias_settings["actions"])>0:
