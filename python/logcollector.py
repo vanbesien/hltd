@@ -19,6 +19,7 @@ import json
 import logging
 import collections
 import subprocess
+import requests
 
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -30,6 +31,7 @@ from hltdconf import *
 from elasticBand import elasticBand
 from aUtils import stdOutLog,stdErrorLog
 from elasticbu import getURLwithIP 
+import mappings
 
 terminate = False
 threadEventRef = None
@@ -703,73 +705,41 @@ class HLTDLogIndex():
         self.host = os.uname()[1]
         self.threadEvent = threading.Event()
 
-        if 'localhost' in es_server_url:
-            nshards = 16
-            self.index_name = 'hltdlogs_'+conf.elastic_cluster
-        else:
-            nshards=1
-            index_suffix = conf.elastic_runindex_name.strip()
-            if index_suffix.startswith('runindex_'):
-                index_suffix=index_suffix[index_suffix.find('_'):]
-            elif index_suffix=='runindex':
-                index_suffix=""
-            elif index_suffix.startswith('runindex'):
-                index_suffix='_'+index_suffix[8:]
-            else: index_suffix='_'+index_suffix
-            self.index_name = 'hltdlogs'+index_suffix
-        self.settings = {
-            "analysis":{
-                "analyzer": {
-                    "prefix-test-analyzer": {
-                        "type": "custom",
-                        "tokenizer": "prefix-test-tokenizer"
-                    }
-                },
-                "tokenizer": {
-                    "prefix-test-tokenizer": {
-                        "type": "path_hierarchy",
-                        "delimiter": "_"
-                    }
-                }
-            },
-            "index":{
-                'number_of_shards' : nshards,
-                'number_of_replicas' : 1
-            }
-        }
-        self.mapping = {
-            'hltdlog' : {
-                '_timestamp' : { 
-                    'enabled'   : True,
-                    'store'     : "yes"
-                },
-                #'_ttl'       : { 'enabled' : True,
-                #              'default' :  '30d'}
-                #,
-                'properties' : {
-                    'host'      : {'type' : 'string'},
-                    'type'      : {'type' : 'string',"index" : "not_analyzed"},
-                    'severity'  : {'type' : 'string',"index" : "not_analyzed"},
-                    'severityVal'  : {'type' : 'integer'},
-                    'message'   : {'type' : 'string'},#,"index" : "not_analyzed"},
-                    'lexicalId' : {'type' : 'string',"index" : "not_analyzed"},
-                    'msgtime' : {'type' : 'date','format':'YYYY-mm-dd HH:mm:ss'},
-                 }
-            }
-        }
+        #if 'localhost' in es_server_url:
+        #    nshards = 16
+        #    self.index_name = 'hltdlogs_'+conf.elastic_cluster
+        #else:
+        index_suffix = conf.elastic_runindex_name.strip()
+        if index_suffix.startswith('runindex_'):
+            index_suffix=index_suffix[index_suffix.find('_'):]
+        elif index_suffix=='runindex':
+            index_suffix=""
+        elif index_suffix.startswith('runindex'):
+            index_suffix='_'+index_suffix[8:]
+        else: index_suffix='_'+index_suffix
+        self.index_name = 'hltdlogs'+index_suffix+"_write" #using write alias
+
+        attempts=10
         while True:
             try:
                 self.logger.info('writing to elastic index '+self.index_name)
                 ip_url=getURLwithIP(es_server_url)
                 self.es = ElasticSearch(ip_url)
-                self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.mapping })
+                #update in case of new documents added to mapping definition
+                for key in mappings.central_hltdlogs_mapping:
+                    doc = mappings.central_hltdlogs_mapping[key]
+                    res = requests.get(ip_url+'/'+self.index_name+'/'+key+'/_mapping')
+                    #only update if mapping is empty
+                    if res.status_code==200 and res.content.strip()=='{}':
+                        requests.post(ip_url+'/'+self.index_name+'/'+key+'/_mapping',str(doc))
                 break
-            except ElasticHttpError as ex:
-                #this is normally fine as the index gets created somewhere across the cluster
-                self.logger.info(ex)
-                break
-            except (ConnectionError,Timeout) as ex:
+            except (ElasticHttpError,ConnectionError,Timeout) as ex:
                 #try to reconnect with different IP from DNS load balancing
+                self.logger.info(ex)
+                if attempts<=0:
+                    self.logger.error("Unable to communicate with elasticsearch / hltdlogs")
+                    break
+                attempts-=1
                 self.threadEvent.wait(2)
                 continue
 
