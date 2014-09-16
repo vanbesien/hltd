@@ -12,32 +12,13 @@ import CGIHTTPServer
 import BaseHTTPServer
 import syslog
 
-hltdconf='/etc/hltd.conf'
-watch_directory='/fff/ramdisk'
-machine_is_bu=False
-cgi_port=8000
-
-def parseConfiguration():
-    try:
-        f=open(hltdconf)
-        for l in f.readlines():
-            ls=l.strip(' ')
-            if not ls.startswith('#') and ls.startswith('watch_directory'):
-                watch_directory=ls.split('=')[1].strip()
-            if not ls.startswith('#') and ls.startswith('role'):
-                if ls.split('=')[1].strip()=='bu': machine_is_bu=True
-                if ls.split('=')[1].strip()=='fu': machine_is_fu=True
-            if not ls.startswith('#') and ls.startswith('cgi_port'):
-                cgi_port=int(ls.split('=')[1].strip())
-        f.close()
-    except Exception as ex:
-        print "Unable to read watch_directory, using default: /fff/ramdisk"
-
 class UmountResponseReceiver(threading.Thread):
 
-    def __init__(self):
+    def __init__(self,watchdir,cgiport):
         threading.Thread.__init__(self)
         self.httpd=None
+        self.watch_directory=watchdir
+        self.cgi_port=cgiport
  
     def run(self):
 
@@ -47,15 +28,15 @@ class UmountResponseReceiver(threading.Thread):
             # the following allows the base directory of the http
             # server to be 'conf.watch_directory, which is writeable
             # to everybody
-            os.chdir(watch_directory)
+            os.chdir(self.watch_directory)
             os.remove('cgi-bin')
             #if os.path.exists(watch_directory+'/cgi-bin'):
             #    os.remove(watch_directory+'/cgi-bin')
-            os.symlink('/opt/hltd/cgi',watch_directory+'/cgi-bin')
+            os.symlink('/opt/hltd/cgi',self.watch_directory+'/cgi-bin')
 
             handler.cgi_directories = ['/cgi-bin']
-            print("starting http server on port "+str(cgi_port+5))
-            self.httpd = BaseHTTPServer.HTTPServer(("", cgi_port+5), handler)
+            print("starting http server on port "+str(self.cgi_port+5))
+            self.httpd = BaseHTTPServer.HTTPServer(("", self.cgi_port+5), handler)
 
             self.httpd.serve_forever()
         except KeyboardInterrupt:
@@ -65,7 +46,32 @@ class UmountResponseReceiver(threading.Thread):
             self.httpd.shutdown()
 
 def stopFUs():
-    parseConfiguration()
+
+    hltdconf='/etc/hltd.conf'
+    watch_directory='/fff/ramdisk'
+    machine_is_bu=False
+    machine_is_fu=False
+    cgi_port=8000
+
+    try:
+        f=open(hltdconf)
+        for l in f.readlines():
+            ls=l.strip(' \n')
+            if not ls.startswith('#') and ls.startswith('watch_directory'):
+                watch_directory=ls.split('=')[1].strip(' ')
+            if not ls.startswith('#') and ls.startswith('role'):
+                if 'bu' in ls.split('=')[1].strip(' '): machine_is_bu=True
+                if 'fu' in ls.split('=')[1].strip(' ')=='fu': machine_is_fu=True
+            if not ls.startswith('#') and ls.startswith('cgi_port'):
+                cgi_port=int(ls.split('=')[1].strip(' '))
+        f.close()
+    except Exception as ex:
+        print "Unable to read parameters",str(ex),"using defaults"
+    print machine_is_bu,machine_is_fu
+
+
+
+
     if machine_is_bu==False:return True
     #continue with notifying FUs
     boxinfodir=os.path.join(watch_directory,'appliance/boxes')
@@ -93,7 +99,7 @@ def stopFUs():
                 print "Unable to contact machine",machine
  
 
-    receiver = UmountResponseReceiver()
+    receiver = UmountResponseReceiver(watch_directory,cgi_port)
     receiver.start()
 
     usedTimeout=0
@@ -125,7 +131,8 @@ def stopFUs():
     receiver.stop()
     receiver.join()
 
-    print "Finished FU suspend for:",machinelist-activeMachines
+    print "Finished FU suspend for:",str(machinelist)
+    print "Not successful:",str(activeMachines)
     if usedTimeout==maxTimeout:
         print "FU suspend failed for hosts:",activeMachines
         syslog.syslog("hltd: FU suspend failed for hosts"+str(activeMachines))

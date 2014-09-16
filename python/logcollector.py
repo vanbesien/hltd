@@ -374,7 +374,7 @@ class CMSSWLogParser(threading.Thread):
         self.closed=True
         #prepend file with 'old_' prefix so that it can be deleted later
         fpath, fname = os.path.split(self.path)
-        os.rename(self.path,fpath+'/old_'+fname)
+        os.rename(self.path,os.path.join(fpath,'old_'+fname))
 
     def process(self,buf,offset=0):
         max = len(buf)
@@ -691,7 +691,7 @@ class CMSSWLogCollector(object):
         for fname in logfiles:
             if fname.startswith('hlt_') and fname.endswith('.log'):
                 #prepend file with 'old_' prefix so that it can be deleted later
-                os.rename(os.path.join(self.dir,fname),os.path.join(self.dir,'/old_'+fname))
+                os.rename(os.path.join(self.dir,fname),os.path.join(self.dir,'old_'+fname))
 
 
 
