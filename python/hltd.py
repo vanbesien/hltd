@@ -279,7 +279,7 @@ class system_monitor(threading.Thread):
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
                 if suspended:continue
-                tstring = datetime.utcfromtimestamp(time.time()).isoformat()
+                tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
 
                 fp = None
                 for mfile in self.file:

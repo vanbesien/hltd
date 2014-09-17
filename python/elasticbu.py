@@ -125,11 +125,11 @@ class elasticBandBU:
     def createDocMappingsMaybe(self,index_name,mapping):
         #update in case of new documents added to mapping definition
         for key in mapping:
-            doc = mapping[key]
+            doc = {key:mapping[key]}
             res = requests.get(self.ip_url+'/'+index_name+'/'+key+'/_mapping')
             #only update if mapping is empty
             if res.status_code==200 and res.content.strip()=='{}':
-                requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',str(doc))
+                requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',json.dumps(doc))
 
     def resetURL(url):
         self.es = None
@@ -180,13 +180,17 @@ class elasticBandBU:
         if basename.startswith('fu'):
             try:
                 self.boxinfoFUMap[basename] = [infile.data,current_time]
-                document = infile.data
-                document['id']=basename
-                self.index_documents('boxinfo',[document])
             except Exception as ex:
                 self.logger.warning('box info not injected: '+str(ex))
                 return
-        elif basename.startswith('bu'):
+        try:
+            document = infile.data
+            document['id']=basename
+            self.index_documents('boxinfo',[document])
+        except Exception as ex:
+            self.logger.warning('box info not injected: '+str(ex))
+            return
+        if basename.startswith('bu') or basename.startswith('dvbu'):
             try:
                 document = infile.data
                 #aggregation from FUs

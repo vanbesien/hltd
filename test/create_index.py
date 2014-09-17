@@ -2,6 +2,7 @@
 
 import sys
 import requests
+import json
 
 sys.path.append('/opt/hltd/python')
 sys.path.append('/opt/hltd/lib')
@@ -77,6 +78,7 @@ if command=='mapping':
     for key in my_mapping:
         try:
             doc = my_mapping[key]
+            doc = {key:doc}
             res = requests.get(server_url+'/'+index_name+'/'+key+'/_mapping')
             if res.status_code==404:
                 print "index doesn't exist. Try to create it first?"
@@ -84,15 +86,14 @@ if command=='mapping':
             #only update if mapping is empty
             if res.status_code==200:
               if res.content.strip()=='{}':
-                result = requests.post(server_url+'/'+index_name+'/'+key+'/_mapping',str(doc))
+                result = requests.post(server_url+'/'+index_name+'/'+key+'/_mapping',json.dumps(doc))
                 if result.status_code==200:
                     print "created document mapping for '"+key+"'"
                 else:
                     print "Failed to create mapping for",key
-                    print result.content
               else:
                 print "document mapping for '"+key+"' already exists"
-        except Exception:
+        except Exception as ex:
             print ex
             pass
 
