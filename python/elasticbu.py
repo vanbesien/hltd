@@ -403,8 +403,10 @@ class elasticBoxCollectorBU():
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
                     self.emptyQueue.set()
-                except (ValueError,IOError) as ex:
+                except ValueError as ex:
                     self.logger.exception(ex)
+                except IOError as ex:
+                    self.logger.warning("IOError on reading "+event.fullpath)
             else:
                 time.sleep(1.0)
         self.logger.info("Stop main loop")
