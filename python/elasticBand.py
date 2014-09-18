@@ -176,6 +176,7 @@ class elasticBand():
                             'errorEvents' : {'type' : 'integer'},
                             'returnCodeMask': {'type':'string',"index" : "not_analyzed"},
                             'fileSize' : {'type':'long'},
+                            'fileAdler32' : {'type':'long'},
                             'files': {
                                 'properties' : {
                                     'name' : { 'type' : 'string',"index" : "not_analyzed"}
@@ -213,6 +214,19 @@ class elasticBand():
                     'out': { 'type' : 'integer'},
                     'ls' : { 'type' : 'integer' },
                     'source' : {'type' : 'string'}#,"index" : "not_analyzed"}
+                }
+            },
+            'hltrates-legend': {
+                'properties': {
+                    'path-names'  : {'type' : 'string','index':'not_analyzed'}
+                }
+            },
+            'hltrates': {
+                'properties': {
+                    'ls' : {'type' : 'integer'},
+                    'pid' : {'type' : 'integer'},
+                    'processed' : {'type' : 'integer'},
+                    'path-accepted'  : {'type' : 'integer'}
                 }
             },
             'cmsswlog' : {
@@ -341,7 +355,7 @@ class elasticBand():
         if stream.startswith("stream"): stream = stream[6:]
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
 
         document['data']=datadict
@@ -362,7 +376,7 @@ class elasticBand():
         if stream.startswith("stream"): stream = stream[6:]
 
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
 
         
@@ -392,6 +406,24 @@ class elasticBand():
         #os.remove(path+'/'+file)
         #return int(ls[2:])
 
+    def elasticize_hltrates(self,infile,writeLegend):
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return False
+        if writeLegend:
+            legend = []
+            for item in infile.definitions:
+                if item['name']!='Processed': legend.append(item['name'])
+            datadict={'path-names':legend}
+            self.es.index(self.indexName,'hltrates-legend',datadict)
+            
+        datadict={}
+        datadict['ls'] = int(infile.ls[2:])
+        datadict['pid'] = int(infile.pid[3:])
+        datadict['path-accepted']=document['data'][1:]
+        datadict['processed']=document['data'][0]
+        self.es.index(self.indexName,'hltrates',datadict)
+        return True
+ 
     def elasticize_fu_complete(self,timestamp):
         document = {}
         document['host']=os.uname()[1]

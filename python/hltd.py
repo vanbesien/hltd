@@ -4,7 +4,7 @@ sys.path.append('/opt/hltd/python')
 sys.path.append('/opt/hltd/lib')
 
 import time
-from datetime import datetime
+import datetime
 import logging
 import subprocess
 from signal import SIGKILL
@@ -20,6 +20,7 @@ import httplib
 import demote
 import re
 import shutil
+import socket
 
 #modules distributed with hltd
 import prctl
@@ -45,6 +46,7 @@ bu_disk_list_ramdisk=[]
 bu_disk_list_output=[]
 active_runs=[]
 resource_lock = threading.Lock()
+suspended=False
 
 logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
@@ -77,26 +79,27 @@ def cleanup_resources():
         os.rename(idles+dirlist[i],quarantined+dirlist[i])
 
 
-def cleanup_mountpoints():
+def cleanup_mountpoints(remount=True):
     bu_disk_list_ramdisk[:] = []
     bu_disk_list_output[:] = []
     if conf.bu_base_dir[0] == '/':
         bu_disk_list_ramdisk[:] = [os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory)]
         bu_disk_list_output[:] = [os.path.join(conf.bu_base_dir,conf.output_subdirectory)]
         #make subdirectories if necessary and return
-        try:
-            os.makedirs(conf.bu_base_dir)
-        except OSError:
-            pass
-        try:
-            os.makedirs(os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory))
-        except OSError:
-            pass
-        try:
-            os.makedirs(os.path.join(conf.bu_base_dir,conf.output_subdirectory))
-        except OSError:
-            pass
-        return
+        if remount==True:
+            try:
+                os.makedirs(conf.bu_base_dir)
+            except OSError:
+                pass
+            try:
+                os.makedirs(os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory))
+            except OSError:
+                pass
+            try:
+                os.makedirs(os.path.join(conf.bu_base_dir,conf.output_subdirectory))
+            except OSError:
+                pass
+            return
     try:
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
@@ -104,37 +107,50 @@ def cleanup_mountpoints():
         if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
         logging.info("cleanup_mountpoints: found following mount points ")
         logging.info(mounts)
+        umount_failure=False
         for point in mounts:
             logging.info("trying umount of "+point)
             try:
                 subprocess.check_call(['umount','/'+point])
             except subprocess.CalledProcessError, err1:
                 pass
+            except Exception as ex:
+                logging.exception(ex)
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
             except subprocess.CalledProcessError, err1:
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
+                umount_failure=True
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.output_subdirectory)])
             except subprocess.CalledProcessError, err1:
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
+                umount_failure=True
+            #this will remove directories only if they are empty (as unomunted mount point should be)
             try:
                 if os.path.join('/'+point,conf.ramdisk_subdirectory)!='/':
 	            os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
-            except:pass
+            except Exception as ex:
+                logging.exception(ex)
             try:
                 if os.path.join('/'+point,conf.output_subdirectory)!='/':
                     os.rmdir(os.path.join('/'+point,conf.output_subdirectory))
-            except:pass
+            except Exception as ex:
+                logging.exception(ex)
             try:
                 if os.path.join('/',point)!='/':
                     os.rmdir('/'+point)
-            except:pass
+            except Exception as ex:
+                logging.exception(ex)
+        if remount==False:
+            if umount_failure:return False
+            return True
         i = 0
-        if os.path.exists(conf.resource_base+'/bus.config'):
-            for line in open(conf.resource_base+'/bus.config'):
+        bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+        if os.path.exists(bus_config):
+            for line in open(bus_config):
                 logging.info("found BU to mount at "+line.strip())
                 try:
                     os.makedirs('/'+conf.bu_base_dir+str(i))
@@ -152,11 +168,11 @@ def cleanup_mountpoints():
                 attemptsLeft = 8
                 while attemptsLeft>0:
                     #by default ping waits 10 seconds
-                    p_begin = datetime.now()
+                    p_begin = datetime.datetime.now()
                     if os.system("ping -c 1 "+line.strip())==0:
                         break
                     else:
-                        p_end = datetime.now()
+                        p_end = datetime.datetime.now()
                         logging.warn('unable to ping '+line.strip())
                         dt = p_end - p_begin
                         if dt.seconds < 10:
@@ -166,7 +182,7 @@ def cleanup_mountpoints():
                     logging.fatal('hltd was unable to ping BU '+line.strip())
                     sys.exit(1)
                 else:
-                    logging.info("trying to mount "+line.strip()+':/ '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
+                    logging.info("trying to mount "+line.strip()+':/fff/'+conf.ramdisk_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                     try:
                         subprocess.check_call(
                             [conf.mount_command,
@@ -183,7 +199,7 @@ def cleanup_mountpoints():
                         logging.fatal("Unable to mount ramdisk - exiting.")
                         sys.exit(1)
 
-                    logging.info("trying to mount "+line.strip()+': '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
+                    logging.info("trying to mount "+line.strip()+':/fff/'+conf.output_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
                     try:
                         subprocess.check_call(
                             [conf.mount_command,
@@ -202,11 +218,17 @@ def cleanup_mountpoints():
 
 
                 i+=1
+        #clean up suspended state
+        try:
+            if remount==True:os.unlink(conf.watch_directory+'/suspend')
+        except:pass
     except Exception as ex:
         logging.error("Exception in cleanup_mountpoints")
         logging.exception(ex)
-        logging.fatal("Unable to handle mounting - exiting.")
-        sys.exit(1)
+        if remount==True:
+            logging.fatal("Unable to handle (un)mounting")
+            #sys.exit(1)
+        else:return False
 
 def calculate_threadnumber():
     global nthreads
@@ -252,11 +274,12 @@ class system_monitor(threading.Thread):
     def run(self):
         try:
             logging.debug('entered system monitor thread ')
+            global suspended
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
-
-                tstring = datetime.utcfromtimestamp(time.time()).isoformat()
+                if suspended:continue
+                tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
 
                 fp = None
                 for mfile in self.file:
@@ -401,7 +424,7 @@ class OnlineResource:
     def NotifyNewRun(self,runnumber):
         self.runnumber = runnumber
         logging.info("calling start of run on "+self.cpu[0]);
-        connection = httplib.HTTPConnection(self.cpu[0], 8000)
+        connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
         connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
         response = connection.getresponse()
         #do something intelligent with the response code
@@ -411,7 +434,7 @@ class OnlineResource:
             logging.info(response.read())
 
     def NotifyShutdown(self):
-        connection = httplib.HTTPConnection(self.cpu[0], 8000)
+        connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
         connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
         time.sleep(0.05)
         response = connection.getresponse()
@@ -716,7 +739,7 @@ class Run:
         self.version = None
         self.menu = None
         self.waitForEndThread = None
-        self.beginTime = datetime.now()
+        self.beginTime = datetime.datetime.now()
         self.anelasticWatchdog = None
         self.threadEvent = threading.Event()
         global active_runs
@@ -767,7 +790,8 @@ class Run:
             self.arch = conf.cmssw_arch
             self.version = conf.cmssw_default_version
             self.menu = conf.test_hlt_config1
-            logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
+            if conf.role=='fu':
+                logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
         self.rawinputdir = None
         if conf.role == "bu":
@@ -889,7 +913,7 @@ class Run:
             else:
                 resource.NotifyNewRun(self.runnumber)
                 #update begin time to after notifying FUs
-                self.beginTime = datetime.now()
+                self.beginTime = datetime.datetime.now()
         if conf.role == 'fu' and conf.dqm_machine==False:
             self.changeMarkerMaybe(Run.ACTIVE)
             #start safeguard monitoring of anelastic.py
@@ -1016,6 +1040,7 @@ class Run:
                         self.anelastic_monitor.wait()
                     else:
                         self.anelastic_monitor.terminate()
+                        self.anelastic_monitor.wait()
             except Exception as ex:
                 logging.info("exception encountered in shutting down anelastic.py "+ str(ex))
                 #logging.exception(ex)
@@ -1026,6 +1051,7 @@ class Run:
                             self.elastic_monitor.wait()
                         else:
                             self.elastic_monitor.terminate()
+                            self.elastic_monitor.wait()
                 except Exception as ex:
                     logging.info("exception encountered in shutting down elastic.py")
                     logging.exception(ex)
@@ -1126,7 +1152,7 @@ class Run:
                 try:
                     self.elastic_monitor.wait()
                 except OSError,ex:
-                    logging.info("Exception encountered in waiting for termination of nelastic:" +str(ex))
+                    logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
             if conf.delete_run_dir is not None and conf.delete_run_dir == True:
                 try:
                     shutil.rmtree(self.dirname)
@@ -1186,7 +1212,7 @@ class Run:
                 logging.info('start checking completition of run '+str(self.runnumber))
                 #mode 1: check for complete entries in ES
                 #mode 2: check for runs in 'boxes' files
-                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs)
+                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs,self.elastic_monitor)
                 self.endChecker.start()
             except Exception,ex:
                 logging.error('failure to start run completition checker:')
@@ -1343,7 +1369,7 @@ class RunRanger:
                         age = current_time - os.path.getmtime(boxdir+name)
                         logging.info('found box '+name+' with keepalive age '+str(age))
                         if age < 20:
-                            connection = httplib.HTTPConnection(name, 8000)
+                            connection = httplib.HTTPConnection(name, conf.cgi_port)
                             connection.request("GET",'cgi-bin/herod_cgi.py')
                             response = connection.getresponse()
                     logging.info("sent herod to all child FUs")
@@ -1394,6 +1420,93 @@ class RunRanger:
                     except Exception as ex:
                         logging.exception(ex)
 
+        elif dirname.startswith('suspend') and conf.role == 'fu':
+            logging.info('suspend mountpoints initiated')
+            global suspended
+            suspended=True
+            for run in run_list:
+                run.Shutdown(False)#terminate all ongoing runs
+            run_list=[]
+            time.sleep(.5)
+            umount_success = cleanup_mountpoints(remount=False)
+
+            if umount_success==False:
+                time.sleep(1)
+                logging.error("Suspend initiated from BU failed, trying again...")
+                #notifying itself again
+                try:os.remove(event.fullpath)
+                except:pass
+                fp = open(event.fullpath,"w+")
+                fp.close()
+                return 
+                #logging.info("Suspend failed, preparing for harakiri...")
+                #time.sleep(.1)
+                #fp = open(os.path.join(os.path.dirname(event.fullpath.rstrip(os.path.sep)),'harakiri'),"w+")
+                #fp.close()
+                #return
+
+            #find out BU name from bus_config
+            bu_name=None
+            bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+            if os.path.exists(bus_config):
+                for line in open(bus_config):
+                    bu_name=line.split('.')[0]
+                    break
+
+            #first report to BU that umount was done
+            try:
+                if bu_name==None:
+                    logging.fatal("No BU name was found in the bus.config file. Leaving mount points unmounted until the hltd service restart.")
+                    os.remove(event.fullpath)
+                    return
+                connection = httplib.HTTPConnection(bu_name, conf.cgi_port+5,timeout=5)
+                connection.request("GET",'cgi-bin/report_suspend_cgi.py?host='+os.uname()[1])
+                response = connection.getresponse()
+            except Exception as ex:
+                logging.error("Unable to report suspend state to BU "+str(bu_name)+':'+str(conf.cgi_port+5))
+                logging.exception(ex)
+
+            #loop while BU is not reachable
+            while True:
+                try:
+                    #reopen bus.config in case is modified or moved around
+                    bu_name=None
+                    bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+                    if os.path.exists(bus_config):
+                        try:
+                            for line in open(bus_config):
+                                bu_name=line.split('.')[0]
+                                break
+                        except:
+                            logging.info('exception test 1')
+                            time.sleep(5)
+                            continue
+                    if bu_name==None:
+                        logging.info('exception test 2')
+                        time.sleep(5)
+                        continue
+
+                    logging.info('checking if BU hltd is available...')
+                    connection = httplib.HTTPConnection(bu_name, conf.cgi_port,timeout=5)
+                    connection.request("GET",'cgi-bin/getcwd_cgi.py')
+                    response = connection.getresponse()
+                    logging.info('BU hltd is running !...')
+                    #if we got here, the service is back up
+                    break
+                except Exception as ex:
+                    try:
+                       logging.info('Failed to contact BU hltd service: ' + str(ex.args[0]) +" "+ str(ex.args[1]))
+                    except:
+                       logging.info('Failed to contact BU hltd service: ')
+                    time.sleep(5)
+
+            #mount again
+            cleanup_mountpoints()
+            try:os.remove(event.fullpath)
+            except:pass
+            suspended=False
+            logging.info("Remount is performed")
+ 
         logging.debug("RunRanger completed handling of event "+event.fullpath)
 
     def process_default(self, event):
@@ -1536,7 +1649,8 @@ class ResourceRanger:
 
         logging.debug('ResourceRanger-MODIFY: event '+event.fullpath)
         try:
-            if event.fullpath == conf.resource_base+'/bus.config':
+            bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
+            if event.fullpath == bus_config:
                 if self.managed_monitor:
                     self.managed_monitor.stop()
                     self.managed_monitor.join()
@@ -1584,6 +1698,10 @@ class hltd(Daemon2,object):
         infer it from the name of the machine
         """
 
+        if conf.enabled==False:
+            logging.warning("Service is currently disabled.")
+            sys.exit(1)
+
         if conf.role == 'fu':
 
             """
@@ -1593,7 +1711,7 @@ class hltd(Daemon2,object):
             cleanup_resources()
             """
             recheck mount points
-            this is done at start and whenever the file /etc/appliance/resources/bus.config is modified
+            this is done at start and whenever the file /etc/appliance/bus.config is modified
             mount points depend on configuration which may be updated (by runcontrol)
             (notice that hltd does not NEED to be restarted since it is watching the file all the time)
             """
@@ -1691,6 +1809,8 @@ class hltd(Daemon2,object):
             logging.info("closing httpd socket")
             httpd.socket.close()
             logging.info(threading.enumerate())
+            logging.info("unmounting mount points")
+            cleanup_mountpoints(remount=False)
             logging.info("shutdown of service completed")
         except Exception as ex:
             logging.info("exception encountered in operating hltd")
