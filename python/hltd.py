@@ -790,7 +790,8 @@ class Run:
             self.arch = conf.cmssw_arch
             self.version = conf.cmssw_default_version
             self.menu = conf.test_hlt_config1
-            logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
+            if conf.role=='fu':
+                logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
         self.rawinputdir = None
         if conf.role == "bu":
