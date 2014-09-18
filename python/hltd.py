@@ -104,7 +104,8 @@ def cleanup_mountpoints(remount=True):
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
         mounts = re.findall('/'+conf.bu_base_dir+'[0-9]+',out)
-        if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
+        mounts = list(set(mounts))
+        #if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
         logging.info("cleanup_mountpoints: found following mount points ")
         logging.info(mounts)
         umount_failure=False
