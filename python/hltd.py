@@ -4,7 +4,7 @@ sys.path.append('/opt/hltd/python')
 sys.path.append('/opt/hltd/lib')
 
 import time
-from datetime import datetime
+import datetime
 import logging
 import subprocess
 from signal import SIGKILL
@@ -168,11 +168,11 @@ def cleanup_mountpoints(remount=True):
                 attemptsLeft = 8
                 while attemptsLeft>0:
                     #by default ping waits 10 seconds
-                    p_begin = datetime.now()
+                    p_begin = datetime.datetime.now()
                     if os.system("ping -c 1 "+line.strip())==0:
                         break
                     else:
-                        p_end = datetime.now()
+                        p_end = datetime.datetime.now()
                         logging.warn('unable to ping '+line.strip())
                         dt = p_end - p_begin
                         if dt.seconds < 10:
@@ -739,7 +739,7 @@ class Run:
         self.version = None
         self.menu = None
         self.waitForEndThread = None
-        self.beginTime = datetime.now()
+        self.beginTime = datetime.datetime.now()
         self.anelasticWatchdog = None
         self.threadEvent = threading.Event()
         global active_runs
@@ -912,7 +912,7 @@ class Run:
             else:
                 resource.NotifyNewRun(self.runnumber)
                 #update begin time to after notifying FUs
-                self.beginTime = datetime.now()
+                self.beginTime = datetime.datetime.now()
         if conf.role == 'fu' and conf.dqm_machine==False:
             self.changeMarkerMaybe(Run.ACTIVE)
             #start safeguard monitoring of anelastic.py
