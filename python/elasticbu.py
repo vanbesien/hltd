@@ -245,7 +245,7 @@ class elasticBandBU:
         if stream.startswith("stream"): stream = stream[6:]
         data.append(stream)
         values = [int(f) if str(f).isdigit() else str(f) for f in data]
-        keys = ["processed","accepted","errorEvents","fname","size","eolField1","eolField2","fm_date","ls","stream"]
+        keys = ["processed","accepted","errorEvents","fname","size","adler32","eolField1","eolField2","fm_date","ls","stream"]
         document = dict(zip(keys, values))
         document['id'] = infile.name
         document['_parent']= self.runnumber
