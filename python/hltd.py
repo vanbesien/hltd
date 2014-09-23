@@ -551,6 +551,7 @@ class ProcessWatchdog(threading.Thread):
 
             abortedmarker = self.resource.statefiledir+'/'+Run.ABORTED
             if os.path.exists(abortedmarker):
+                resource_lock.acquire()
                 #release resources
                 try:
                     for cpu in self.resource.cpu:
@@ -559,6 +560,7 @@ class ProcessWatchdog(threading.Thread):
                         except Exception as ex:
                             logging.exception(ex)
                 except:pass
+                resource_lock.release()
                 return
 
             #quit codes (configuration errors):
@@ -617,8 +619,10 @@ class ProcessWatchdog(threading.Thread):
                                  +str(self.resource.cpu)
                                  +" attempt "
                                  + str(self.resource.retry_attempts))
+                    resource_lock.acquire()
                     for cpu in self.resource.cpu:
                       os.rename(used+cpu,broken+cpu)
+                    resource_lock.release()
                     logging.debug("resource(s) " +str(self.resource.cpu)+
                                   " successfully moved to except")
                 elif self.resource.retry_attempts >= self.retry_limit:
@@ -627,9 +631,11 @@ class ProcessWatchdog(threading.Thread):
                                   +" on resources " + str(self.resource.cpu)
                                   +" reached max retry limit "
                                   )
+                    resource_lock.acquire()
                     for cpu in self.resource.cpu:
                         os.rename(used+cpu,quarantined+cpu)
                         self.resource.quarantined.append(cpu)
+                    resource_lock.release()
                     self.quarantined=True
 
                     #write quarantined marker for RunRanger
@@ -667,14 +673,17 @@ class ProcessWatchdog(threading.Thread):
                     if os.path.exists(completemarker): break
                     time.sleep(.1)
                 # move back the resource now that it's safe since the run is marked as ended
+                resource_lock.acquire()
                 for cpu in self.resource.cpu:
                   os.rename(used+cpu,idles+cpu)
+                resource_lock.release()
 
                 #self.resource.process=None
 
             #        logging.info('exiting thread '+str(self.resource.process.pid))
 
         except Exception as ex:
+            resource_lock.release()
             logging.info("OnlineResource watchdog: exception")
             logging.exception(ex)
         return
@@ -1238,9 +1247,12 @@ class RunRanger:
                         bu_dir = ''
 
                     # in case of a DQM machines create an EoR file
-                    if conf.dqm_machine:
-                        pass # create an EoR file that will trigger all the running jobs to exit nicely
-
+                    if conf.dqm_machine and conf.role == 'bu':
+                        for run in run_list:
+                            if run.is_active_run:
+                                # create an EoR file that will trigger all the running jobs to exit nicely
+                                open(run.dirname + '/' + 'run' + str(run.runnumber).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn', 'w').close()
+                                
                     run_list.append(Run(nr,event.fullpath,bu_dir))
                     resource_lock.acquire()
                     run_list[-1].AcquireResources(mode='greedy')
@@ -1279,8 +1291,11 @@ class RunRanger:
                         if len(runtoend)==1:
                             logging.info('end run '+str(nr))
                             #remove from run_list to prevent intermittent restarts
+                            #lock used to fix a race condition when core files are being moved around
+                            resource_lock.acquire()
                             run_list.remove(runtoend[0])
                             time.sleep(.1)
+                            resource_lock.release()
                             if conf.role == 'fu':
                                 runtoend[0].StartWaitForEnd()
                             if bu_emulator and bu_emulator.runnumber != None:
@@ -1297,6 +1312,7 @@ class RunRanger:
                                           +'*never* happen')
 
                     except Exception as ex:
+                        resource_lock.release()
                         logging.info("exception encountered when waiting hltrun to end")
                         logging.info(ex)
                 else:
