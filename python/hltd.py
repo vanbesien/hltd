@@ -592,7 +592,8 @@ class ProcessWatchdog(threading.Thread):
 
             #cleanup actions- remove process from list and
             # attempt restart on same resource
-            if returncode != 0 and returncode not in quit_codes:
+            #dqm mode will treat configuration error as a crash and eventually move to quarantined
+            if returncode != 0 and ( returncode not in quit_codes or conf.dqm_machine==True):
                 if returncode < 0:
                     logging.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)

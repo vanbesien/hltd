@@ -26,6 +26,7 @@ class elasticBand():
         self.hostname = os.uname()[1]
         self.hostip = socket.gethostbyname_ex(self.hostname)[2][0]
         self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
+        self.indexCreated=False
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -275,14 +276,51 @@ class elasticBand():
                                          }
                                     }]
                        }
-        try:
-            self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
-            self.es.update_aliases(alias_command)
-        except ElasticHttpError as ex:
-#            print "Index already existing - records will be overridden"
-            #this is normally fine as the index gets created somewhere across the cluster
-            pass
 
+        #create ES index and alias
+        attempts = 10
+        attemptsConn = 3
+        while True:
+            try:
+                self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+                break
+            except ElasticHttpError as ex:
+                attempts-=1
+                if attempts==0:
+                    self.logger.error('Unable to create index '+str(self.indexName)+'.Exiting.')
+                    self.logger.error(str(ex))
+                    return
+                continue
+            except (ConnectionError,Timeout) as ex:
+                attemptsConn-=1
+                if attemptsConn==0:
+                    self.logger.error('Unable to connect to local elasticsearch server.Exiting') 
+                    self.logger.error(str(ex))
+                    return
+                continue 
+        attempts = 10
+        attemptsConn = 3
+        while True:
+            try:
+                self.es.update_aliases(alias_command)
+                break
+            except ElasticHttpError as ex:
+                attempts-=1
+                if attempts==0:
+                    self.logger.error('Unable to create alias '+str(aliasName)+'.Exiting.')
+                    self.logger.error(str(ex))
+                    return
+                continue
+            except (ConnectionError,Timeout) as ex:
+                attemptsConn-=1
+                if attemptsConn==0:
+                    self.logger.error('Unable to connect to local elasticsearch server.Exiting') 
+                    self.logger.error(str(ex))
+                    return
+                continue
+ 
+        self.indexCreated=True
+ 
     def imbue_jsn(self,infile):
         with open(infile.filepath,'r') as fp:
             try:

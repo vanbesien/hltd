@@ -193,6 +193,9 @@ if __name__ == "__main__":
         mr.start_inotify()
 
         es = elasticBand.elasticBand('http://localhost:9200',dirname,indexSuffix,expected_processes,update_modulo)
+        if es.indexCreated==False:
+            if mr is not None:mr.stop_inotify()
+            sys.exit(1)
 
         #starting elasticCollector thread
         ec = elasticCollector(ES_DIR_NAME,inmondir)
