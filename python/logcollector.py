@@ -493,6 +493,7 @@ class CMSSWLogESWriter(threading.Thread):
         self.threadEvent = threading.Event()
         self.rn = rn
         self.abort = False
+        self.initialized = False
 
         #try to create elasticsearch index for run logging
         #if not conf.elastic_cluster:
@@ -501,8 +502,8 @@ class CMSSWLogESWriter(threading.Thread):
         self.index_runstring = 'run'+str(self.rn).zfill(conf.run_number_padding)
         self.index_suffix = conf.elastic_cluster
         self.eb = elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
-        
         self.contextualCounter = ContextualCounter()
+        if self.indexCreated==True:self.initialized=True 
 
     def run(self):
         while self.abort == False:
@@ -617,6 +618,9 @@ class CMSSWLogCollector(object):
         if rn and rn > 0 and pid:
             if rn not in self.indices:
                 self.indices[rn] = CMSSWLogESWriter(rn)
+                if self.indices[rn].initialized==False:
+                    self.logger.warning('Unable to initialize CMSSWLogESWriter. Skip handling '+event.fullpath)
+                    return
                 self.indices[rn].start()
 
                 #clean old log files if size is excessive

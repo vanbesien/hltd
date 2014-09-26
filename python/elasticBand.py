@@ -3,6 +3,8 @@ import sys
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
+from pyelasticsearch.client import ConnectionError
+from pyelasticsearch.client import Timeout
 import json
 import csv
 import math
@@ -279,14 +281,21 @@ class elasticBand():
 
         #create ES index and alias
         attempts = 10
-        attemptsConn = 3
+        attemptsConn = 6
         while True:
             try:
                 self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
                 break
+            except IndexAlreadyExistsError:
+                self.indexCreated=True
+                return
+                #index already created (between logcollector and elastic)
             except ElasticHttpError as ex:
                 attempts-=1
                 if attempts==0:
+                    if "IndexAlreadyExists" in str(ex):
+                        self.indexCreated=True
+                        return
                     self.logger.error('Unable to create index '+str(self.indexName)+'.Exiting.')
                     self.logger.error(str(ex))
                     return
