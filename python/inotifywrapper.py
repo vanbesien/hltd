@@ -25,10 +25,10 @@ class InotifyWrapper(threading.Thread):
         self.delay_ = None
 
         if recursive == True:
-            self.logger.info("RECURSIVE_MODE")
+            self.logger.debug("RECURSIVE_MODE")
             self.w = watcher.AutoWatcher()
         else:
-            self.logger.info("NON-RECURSIVE_MODE")
+            self.logger.debug("NON-RECURSIVE_MODE")
             self.w = watcher.Watcher()
 
         self.recursiveMode = recursive

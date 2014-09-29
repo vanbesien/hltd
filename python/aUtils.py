@@ -1,17 +1,17 @@
 import sys,traceback
-import os
+import os,stat
 import time,datetime
 import shutil
 import json
 import logging
-
+import zlib
 
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS = range(22)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESJSD = range(24)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
@@ -117,9 +117,11 @@ class fileHandler(object):
                 elif "CRASH" in name and "_PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
+        if ext==".jsd" and name.startswith("HLTRATES"): return HLTRATESJSD
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
             if "STREAM" in name and "_PID" not in name: return OUTPUT
+            if name.startswith("HLTRATES"): return  HLTRATES
         if ext==".pb":
             if "_PID" not in name: return PB
             else: return PIDPB
@@ -137,11 +139,12 @@ class fileHandler(object):
         name,ext = self.name,self.ext
         splitname = name.split("_")
         if filetype in [STREAM,INI,PDAT,PIDPB,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
-        elif filetype == SLOW: self.run,self.ls,self.pid = splitname
+        elif filetype == SLOW: self.run,self.ls,self.pid = splitname #this is wrong
         elif filetype == FAST: self.run,self.pid = splitname
         elif filetype in [DAT,PB,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
+        elif filetype == HLTRATES:ftype,self.run,self.ls,self.pid = splitname
         else: 
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3
@@ -182,7 +185,7 @@ class fileHandler(object):
 
     def setJsdfile(self,jsdfile):
         self.jsdfile = jsdfile
-        if self.filetype in [OUTPUT,STREAMDQMHISTOUTPUT,CRASH,STREAMERR]: self.initData()
+        if self.filetype in [OUTPUT,STREAMDQMHISTOUTPUT,CRASH,STREAMERR,HLTRATES]: self.initData()
         
     def initData(self):
         defs = self.definitions
@@ -225,19 +228,20 @@ class fileHandler(object):
             self.logger.warning("bad field request %r in %r" %(field,self.definitions))
             return False
 
-    def setFieldByName(self,field,value):
+    def setFieldByName(self,field,value,warning=True):
         index,ftype = self.getFieldIndex(field)
         data = self.data["data"]
         if index > -1:
             data[index] = value
             return True
         else:
-            self.logger.warning("bad field request %r in %r" %(field,self.definitions))
+            if warning==True:
+                self.logger.warning("bad field request %r in %r" %(field,self.definitions))
             return False
 
         #get definitions from jsd file
     def getDefinitions(self):
-        if self.filetype == STREAM:
+        if self.filetype in [STREAM,HLTRATES]:
             self.jsdfile = self.data["definition"]
         elif not self.jsdfile: 
             self.logger.warning("jsd file not set")
@@ -259,12 +263,15 @@ class fileHandler(object):
                 return False
         return True
 
-    def moveFile(self,newpath,copy = False):
-        if not self.exists(): return True
+    def moveFile(self,newpath,copy = False,adler32=False):
+        checksum=1
+        if not self.exists(): return True,checksum
         oldpath = self.filepath
         newdir = os.path.dirname(newpath)
 
-        if not os.path.exists(oldpath): return False
+        if not os.path.exists(oldpath):
+            self.logger.error("Source path does not exist: " + oldpath)
+            return False,checksum
 
         self.logger.info("%s -> %s" %(oldpath,newpath))
         retries = 5
@@ -272,9 +279,12 @@ class fileHandler(object):
         while True:
           try:
               if not os.path.isdir(newdir): os.makedirs(newdir)
-              if copy: shutil.copy(oldpath,newpath_tmp)
-              else: 
-                  shutil.move(oldpath,newpath_tmp)
+
+              if adler32:checksum=self.moveFileAdler32(oldpath,newpath_tmp,copy)
+              else:
+                  if copy: shutil.copy(oldpath,newpath_tmp)
+                  else: 
+                      shutil.move(oldpath,newpath_tmp)
               break
 
           except (OSError,IOError),e:
@@ -282,7 +292,7 @@ class fileHandler(object):
               retries-=1
               if retries == 0:
                   self.logger.error("Failure to move file "+str(oldpath)+" to "+str(newpath_tmp))
-                  return False
+                  return False,checksum
               else:
                   time.sleep(0.5)
         retries = 5
@@ -297,14 +307,50 @@ class fileHandler(object):
                 retries-=1
                 if retries == 0:
                     self.logger.error("Failure to rename the temporary file "+str(newpath_tmp)+" to "+str(newpath))
-                    return False
+                    return False,checksum
                 else:
                     time.sleep(0.5)
 
         self.filepath = newpath
         self.getFileInfo()
-        return True   
+        return True,checksum
 
+    #move file (works only on src as file, not directory) 
+    def moveFileAdler32(self,src,dst,copy):
+
+        if os.path.isdir(src):
+            raise Error("source `%s` is a directory")
+
+        if os.path.isdir(dst):
+            dst = os.path.join(dst, os.path.basename(src))
+
+        try:
+            if os.path.samefile(src, dst):
+                raise Error("`%s` and `%s` are the same file" % (src, dst))
+        except OSError:
+            pass
+
+        #initial adler32 value
+        adler32c=1
+        #calculate checksum on the fly
+        with open(src, 'rb') as fsrc:
+            with open(dst, 'wb') as fdst:
+
+                length=16*1024
+                while 1:
+                    buf = fsrc.read(length)
+                    if not buf:
+                        break
+                    adler32c=zlib.adler32(buf,adler32c)
+                    fdst.write(buf)
+
+        #copy mode bits on the destionation file
+        st = os.stat(src)
+        mode = stat.S_IMODE(st.st_mode)
+        os.chmod(dst, mode)
+
+        if copy==False:os.unlink(src)
+        return adler32c
 
     def exists(self):
         return os.path.exists(self.filepath)
@@ -431,4 +477,6 @@ class Aggregator(object):
         elif data2: return str(data2)
         else: return ""
 
+    def action_adler32(self,data1,data2):
+        return "-1"
 

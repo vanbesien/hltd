@@ -19,6 +19,7 @@ import json
 import logging
 import collections
 import subprocess
+import requests
 
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -30,6 +31,7 @@ from hltdconf import *
 from elasticBand import elasticBand
 from aUtils import stdOutLog,stdErrorLog
 from elasticbu import getURLwithIP 
+import mappings
 
 terminate = False
 threadEventRef = None
@@ -41,6 +43,7 @@ DEBUGLEVEL,INFOLEVEL,WARNINGLEVEL,ERRORLEVEL,FATALLEVEL = range(5)
 typeStr=['messagelogger','exception','eventlog','unformatted','stacktrace']
 severityStr=['DEBUG','INFO','WARNING','ERROR','FATAL']
 
+
 #test defaults
 readonce=32
 bulkinsertMin = 8
@@ -50,10 +53,98 @@ logThreshold = 1 #(INFO)
 contextLogThreshold = 0 #(DEBUG)
 STRMAX=80
 line_limit=1000
+maxlogsize=4194304 #4GB in kbytes
+#maxlogsize=33554432 #32GB in kbytes
+
 #cmssw date and time: "30-Apr-2014 16:50:32 CEST"
 #datetime_fmt = "%d-%b-%Y %H:%M:%S %Z"
 
 hostname = os.uname()[1]
+
+class SuppressInfo:
+
+    def __init__(self,id,counter):
+        self.msgId=id
+        self.counter=counter
+
+class ContextualCounter(object):
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.reset()
+
+    def check(self,event):
+        #try:
+        #    msgId = event.document['module'] + str(event.document['lexicalId'])
+        #except:#no module in document
+        #    msgId = str(event.document['lexicalId'])
+        msgId = event.document['lexicalId']
+        try:
+             counter = self.idCounterMap[msgId][0]
+             modulo = self.idCounterMap[msgId][1]
+        except:
+             if self.numberOfIds>=self.maxNumberOfIds:
+                 if self.numberOfIds==self.maxNumberOfIds:
+                     self.logger.error("Reached maximum number of CMSSW message IDs. Logging disabled...")
+                     self.numberOfIds+=1
+                 return False
+             self.idCounterMap[msgId]=[1,self.moduloInitial]
+             self.numberOfIds+=1
+             #always print first message
+             return True
+
+        counter+=1
+        self.idCounterMap[msgId][0]=counter
+        if counter<self.moduloBase and modulo==1:
+            return True
+        elif counter%modulo == 0:
+            if counter==modulo:
+                #modulo level reached, increasing exponent
+                modulo *= self.moduloBase
+                self.idCounterMap[msgId][1]=modulo
+            self.createTelescopicLog(event,modulo)
+            return True
+        else:
+            #suppressing maximum of 'suppressMax' different messages at the time
+            for e in self.suppressList:
+                if (e.msgId==msgId):return False
+
+            #message id not found in suppressed list..
+            e = SuppressInfo(msgId,counter)
+            if len(self.suppressList)<self.suppressMax:
+                self.suppressList.append(e)
+                return False
+            #else try to replace other suppressed type
+            elif counter>=self.alwaysSuppressThreshold: 
+                for item in self.suppressList:
+                    if counter>item.counter and item.counter<self.alwaysSuppressThreshold:
+                        self.suppressList.remove(item)
+                        break
+                self.suppressList.append(e)
+                return False
+            else:
+                for item in self.suppressList:
+                    if counter>item.counter:
+                        self.suppressList.remove(item)
+                        self.suppressList.append(e)
+                        return False
+        return True
+
+    def reset(self):
+        self.idCounterMap={}
+        self.numberOfIds=0
+        self.maxNumberOfIds=1000
+        self.moduloBase=10
+        self.moduloInitial=1
+        self.suppressMax=10
+        self.suppressList=[]
+        self.alwaysSuppressThreshold=200
+
+    def createTelescopicLog(self,event,modulo):
+        event.append("Another "+ str(modulo) + " messages like this will be suppressed")
+
+
+
 
 def calculateLexicalId(string):
 
@@ -285,7 +376,7 @@ class CMSSWLogParser(threading.Thread):
         self.closed=True
         #prepend file with 'old_' prefix so that it can be deleted later
         fpath, fname = os.path.split(self.path)
-        os.rename(self.path,fpath+'/old_'+fname)
+        os.rename(self.path,os.path.join(fpath,'old_'+fname))
 
     def process(self,buf,offset=0):
         max = len(buf)
@@ -372,14 +463,14 @@ class CMSSWLogParser(threading.Thread):
                         e.decode()
                         mainQueue.put(e)
                     except Exception,ex:
-                        self.logger.error('failed to parse message contentent: ' + str(e.message))
+                        self.logger.error('failed to parse message contentent')
                         self.logger.exception(ex)
             try:
                 event.decode()
                 self.mainQueue.put(event)
 
             except Exception,ex:
-                self.logger.error('failed to parse message contentent: ' + str(e.message))
+                self.logger.error('failed to parse message contentent')
                 self.logger.exception(ex)
 
         elif saveHistory and event.severity>=contextLogThreshold:
@@ -395,7 +486,7 @@ class CMSSWLogESWriter(threading.Thread):
     def __init__(self,rn):
         threading.Thread.__init__(self)
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.queue = Queue.Queue()
+        self.queue = Queue.Queue(1024)
         self.parsers = {}
         self.numParsers=0
         self.doStop = False
@@ -410,6 +501,8 @@ class CMSSWLogESWriter(threading.Thread):
         self.index_runstring = 'run'+str(self.rn).zfill(conf.run_number_padding)
         self.index_suffix = conf.elastic_cluster
         self.eb = elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
+        
+        self.contextualCounter = ContextualCounter()
 
     def run(self):
         while self.abort == False:
@@ -418,7 +511,8 @@ class CMSSWLogESWriter(threading.Thread):
                 while self.abort == False:
                     try:
                         evt = self.queue.get(False)
-                        documents.append(evt.document)
+                        if self.contextualCounter.check(evt):
+                            documents.append(evt.document)
                     except Queue.Empty:
                         break
                 if len(documents)>0:
@@ -431,7 +525,8 @@ class CMSSWLogESWriter(threading.Thread):
                         try:
                             evt = self.queue.get(False)
                             try:
-                                self.eb.es.index(self.eb.indexName,'cmsswlog',evt.document)
+                                if self.contextualCounter.check(evt):
+                                    self.eb.es.index(self.eb.indexName,'cmsswlog',evt.document)
                             except Exception,ex: 
                                 self.logger.error("es index:"+str(ex))
                         except Queue.Empty:
@@ -474,6 +569,10 @@ class CMSSWLogESWriter(threading.Thread):
             self.logger.warn('problem closing parser')
             self.logger.exception(ex)
 
+    def msgIsThrottled(self,doc):
+        #TODO:logarithmic checker based on timestamp and lexical ID
+        pass
+
 
 class CMSSWLogCollector(object):
 
@@ -487,7 +586,9 @@ class CMSSWLogCollector(object):
         global logThreshold
         logThreshold = loglevel
 
-        #start another queue to fill events into elasticsearch
+        #rename leftover hlt logs to old when process starts
+        self.renameOldLogs()
+
 
     def register_inotify_path(self,path,mask):
         self.inotifyWrapper.registerPath(path,mask)
@@ -517,9 +618,14 @@ class CMSSWLogCollector(object):
             if rn not in self.indices:
                 self.indices[rn] = CMSSWLogESWriter(rn)
                 self.indices[rn].start()
+
                 #clean old log files if size is excessive
-                if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>33554432: #32G in kbytes
-                    self.deleteOldLogs()
+                if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize: #4GB ; 33554432 = 32G in kbytes
+                    self.deleteOldLogs(168)#delete files older than 1 week
+
+                    #if not sufficient, delete all old log files 
+                    if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize:
+                        self.deleteOldLogs(0)#
             self.indices[rn].addParser(event.fullpath,pid)
 
         #cleanup
@@ -582,6 +688,14 @@ class CMSSWLogCollector(object):
             self.logger.exception(ex)
             return 0
 
+    def renameOldLogs(self):
+        logfiles = os.listdir(self.dir)
+        for fname in logfiles:
+            if fname.startswith('hlt_') and fname.endswith('.log'):
+                #prepend file with 'old_' prefix so that it can be deleted later
+                os.rename(os.path.join(self.dir,fname),os.path.join(self.dir,'old_'+fname))
+
+
 
 class HLTDLogIndex():
 
@@ -591,73 +705,41 @@ class HLTDLogIndex():
         self.host = os.uname()[1]
         self.threadEvent = threading.Event()
 
-        if 'localhost' in es_server_url:
-            nshards = 16
-            self.index_name = 'hltdlogs_'+conf.elastic_cluster
-        else:
-            nshards=1
-            index_suffix = conf.elastic_runindex_name.strip()
-            if index_suffix.startswith('runindex_'):
-                index_suffix=index_suffix[index_suffix.find('_'):]
-            elif index_suffix=='runindex':
-                index_suffix=""
-            elif index_suffix.startswith('runindex'):
-                index_suffix='_'+index_suffix[8:]
-            else: index_suffix='_'+index_suffix
-            self.index_name = 'hltdlogs'+index_suffix
-        self.settings = {
-            "analysis":{
-                "analyzer": {
-                    "prefix-test-analyzer": {
-                        "type": "custom",
-                        "tokenizer": "prefix-test-tokenizer"
-                    }
-                },
-                "tokenizer": {
-                    "prefix-test-tokenizer": {
-                        "type": "path_hierarchy",
-                        "delimiter": "_"
-                    }
-                }
-            },
-            "index":{
-                'number_of_shards' : nshards,
-                'number_of_replicas' : 1
-            }
-        }
-        self.mapping = {
-            'hltdlog' : {
-                '_timestamp' : { 
-                    'enabled'   : True,
-                    'store'     : "yes"
-                },
-                #'_ttl'       : { 'enabled' : True,
-                #              'default' :  '30d'}
-                #,
-                'properties' : {
-                    'host'      : {'type' : 'string'},
-                    'type'      : {'type' : 'string',"index" : "not_analyzed"},
-                    'severity'  : {'type' : 'string',"index" : "not_analyzed"},
-                    'severityVal'  : {'type' : 'integer'},
-                    'message'   : {'type' : 'string'},#,"index" : "not_analyzed"},
-                    'lexicalId' : {'type' : 'string',"index" : "not_analyzed"},
-                    'msgtime' : {'type' : 'date','format':'YYYY-mm-dd HH:mm:ss'},
-                 }
-            }
-        }
+        #if 'localhost' in es_server_url:
+        #    nshards = 16
+        #    self.index_name = 'hltdlogs_'+conf.elastic_cluster
+        #else:
+        index_suffix = conf.elastic_runindex_name.strip()
+        if index_suffix.startswith('runindex_'):
+            index_suffix=index_suffix[index_suffix.find('_'):]
+        elif index_suffix=='runindex':
+            index_suffix=""
+        elif index_suffix.startswith('runindex'):
+            index_suffix='_'+index_suffix[8:]
+        else: index_suffix='_'+index_suffix
+        self.index_name = 'hltdlogs'+index_suffix+"_write" #using write alias
+
+        attempts=10
         while True:
             try:
                 self.logger.info('writing to elastic index '+self.index_name)
                 ip_url=getURLwithIP(es_server_url)
                 self.es = ElasticSearch(ip_url)
-                self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.mapping })
+                #update in case of new documents added to mapping definition
+                for key in mappings.central_hltdlogs_mapping:
+                    doc = mappings.central_hltdlogs_mapping[key]
+                    res = requests.get(ip_url+'/'+self.index_name+'/'+key+'/_mapping')
+                    #only update if mapping is empty
+                    if res.status_code==200 and res.content.strip()=='{}':
+                        requests.post(ip_url+'/'+self.index_name+'/'+key+'/_mapping',str(doc))
                 break
-            except ElasticHttpError as ex:
-                #this is normally fine as the index gets created somewhere across the cluster
-                self.logger.info(ex)
-                break
-            except (ConnectionError,Timeout) as ex:
+            except (ElasticHttpError,ConnectionError,Timeout) as ex:
                 #try to reconnect with different IP from DNS load balancing
+                self.logger.info(ex)
+                if attempts<=0:
+                    self.logger.error("Unable to communicate with elasticsearch / hltdlogs")
+                    break
+                attempts-=1
                 self.threadEvent.wait(2)
                 continue
 
