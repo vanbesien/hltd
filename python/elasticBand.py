@@ -1,4 +1,4 @@
-import os,time
+import os,socket,time
 import sys
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -23,6 +23,9 @@ class elasticBand():
         self.prcoutBuffer = {}
         self.fuoutBuffer = {}
         self.es = ElasticSearch(es_server_url) 
+        self.hostname = os.uname()[1]
+        self.hostip = socket.gethostbyname_ex(self.hostname)[2][0]
+        self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -30,19 +33,29 @@ class elasticBand():
                         "type": "custom",
                         "tokenizer": "prefix-test-tokenizer"
                     }
-                },
+                    },
                 "tokenizer": {
                     "prefix-test-tokenizer": {
                         "type": "path_hierarchy",
                         "delimiter": "_"
+                        }
+                    }
+                },
+            "index":{
+                'number_of_shards' : 2,
+                'number_of_replicas' : 0,
+                "routing" : {
+                    "allocation" : {
+                        "require" : {
+                            "_ip" : self.hostip
+                            }
+                        }
                     }
                 }
-            },
-            "index":{
-                'number_of_shards' : 16,
-                'number_of_replicas' : 1
             }
-        }
+        
+        
+        
 
         self.run_mapping = {
             'prc-i-state' : {
@@ -163,6 +176,7 @@ class elasticBand():
                             'errorEvents' : {'type' : 'integer'},
                             'returnCodeMask': {'type':'string',"index" : "not_analyzed"},
                             'fileSize' : {'type':'long'},
+                            'fileAdler32' : {'type':'long'},
                             'files': {
                                 'properties' : {
                                     'name' : { 'type' : 'string',"index" : "not_analyzed"}
@@ -202,14 +216,31 @@ class elasticBand():
                     'source' : {'type' : 'string'}#,"index" : "not_analyzed"}
                 }
             },
+            'hltrates-legend': {
+                'properties': {
+                    'path-names'  : {'type' : 'string','index':'not_analyzed'}
+                }
+            },
+            'hltrates': {
+                'properties': {
+                    'ls' : {'type' : 'integer'},
+                    'pid' : {'type' : 'integer'},
+                    'processed' : {'type' : 'integer'},
+                    'path-accepted'  : {'type' : 'integer'}
+                }
+            },
             'cmsswlog' : {
                 '_timestamp' : { 
                     'enabled'   : True,
                     'store'     : "yes"
                 },
                 '_ttl'       : { 'enabled' : True,
-                              'default' :  '30d'}
-                ,
+                                 'default' :  '30d'
+                },
+                '_routing' :{
+                    'required' : True,
+                    'path'     : 'host'
+                },
                 'properties' : {
                     'host'      : {'type' : 'string'},
                     'pid'       : {'type' : 'integer'},
@@ -236,9 +267,17 @@ class elasticBand():
         self.run = runstring
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo
-        self.indexName = runstring + "_"+indexSuffix
+        aliasName = runstring + "_" + indexSuffix
+        self.indexName = aliasName + "_" + self.hostname 
+        alias_command ={'actions': [{"add":
+                                        {"index":self.indexName,
+                                         "alias":aliasName
+                                         }
+                                    }]
+                       }
         try:
             self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+            self.es.update_aliases(alias_command)
         except ElasticHttpError as ex:
 #            print "Index already existing - records will be overridden"
             #this is normally fine as the index gets created somewhere across the cluster
@@ -316,7 +355,7 @@ class elasticBand():
         if stream.startswith("stream"): stream = stream[6:]
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
 
         document['data']=datadict
@@ -337,7 +376,7 @@ class elasticBand():
         if stream.startswith("stream"): stream = stream[6:]
 
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
 
         
@@ -367,6 +406,24 @@ class elasticBand():
         #os.remove(path+'/'+file)
         #return int(ls[2:])
 
+    def elasticize_hltrates(self,infile,writeLegend):
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return False
+        if writeLegend:
+            legend = []
+            for item in infile.definitions:
+                if item['name']!='Processed': legend.append(item['name'])
+            datadict={'path-names':legend}
+            self.es.index(self.indexName,'hltrates-legend',datadict)
+            
+        datadict={}
+        datadict['ls'] = int(infile.ls[2:])
+        datadict['pid'] = int(infile.pid[3:])
+        datadict['path-accepted']=document['data'][1:]
+        datadict['processed']=document['data'][0]
+        self.es.index(self.indexName,'hltrates',datadict)
+        return True
+ 
     def elasticize_fu_complete(self,timestamp):
         document = {}
         document['host']=os.uname()[1]

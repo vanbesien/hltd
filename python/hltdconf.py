@@ -1,6 +1,7 @@
 import ConfigParser
 import logging
 import os
+import datetime
 
 class hltdConf:
     def __init__(self, conffile):
@@ -11,6 +12,7 @@ class hltdConf:
         cfg = ConfigParser.SafeConfigParser()
         cfg.read(conffile)
 
+        self.enabled=False
         self.role = None
         self.elastic_bu_test = None
         self.elastic_runindex_url = None
@@ -25,6 +27,7 @@ class hltdConf:
             for item,value in cfg.items(sec):
                 self.__dict__[item] = value
 
+        self.enabled = bool(self.enabled=="True")
         self.run_number_padding = int(self.run_number_padding)
         self.delete_run_dir = bool(self.delete_run_dir=="True")
         self.use_elasticsearch = bool(self.use_elasticsearch=="True")
@@ -60,26 +63,11 @@ class hltdConf:
                         self.elastic_cluster = line.split(':')[1].strip()
       
     def dump(self):
-        logging.info( 'self.exec_directory '+self.exec_directory)
-        logging.info( 'self.user '+self.user)
-        if conf.watch_directory:
-            logging.info( 'self.watch_directory '+ self.watch_directory)
-        logging.info( 'self.bu_base_dir '+ self.bu_base_dir)
-        logging.info( 'self.mount_command '+ self.mount_command)
-#        logging.info( 'self.role '+ self.role)
-        logging.info( 'self.resource_base '+ self.resource_base)
-        logging.info( 'self.process_restart_delay_sec '+ str(self.process_restart_delay_sec))
-        logging.info( 'self.process_restart_limit '+ str(self.process_restart_limit))
-        logging.info( 'self.cmssw_base '+ self.cmssw_base)
-        logging.info( 'self.cmssw_arch '+ self.cmssw_arch)
-        logging.info( 'self.cmssw_default_version '+ self.cmssw_default_version)
-        logging.info( 'self.cmssw_script_location '+ self.cmssw_script_location)
-        logging.info( 'self.cmssw_threads_autosplit '+ str(self.cmssw_threads_autosplit))
-        logging.info( 'self.cmssw_threads '+ str(self.cmssw_threads))
-        logging.info( 'self.cmssw_streams '+ str(self.cmssw_streams))
-        logging.info( 'self.test_hlt_config '+ self.test_hlt_config1)
-        logging.info( 'self.test_bu_config '+ self.test_bu_config)
-        logging.info( 'self.service_log_level '+str(self.service_log_level))
+        logging.info( '<CONFIGURATION time='+str(datetime.datetime.now())+'>')
+        logging.info( 'conf.user            '+self.user)
+        logging.info( 'conf.role            '+ self.role)
+        logging.info( 'conf.cmssw_base      '+ self.cmssw_base)
+        logging.info( '</CONFIGURATION>')
 
     def autodetect_parameters(self):
         if not self.role and 'bu' in os.uname()[1]:

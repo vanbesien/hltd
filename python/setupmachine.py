@@ -2,6 +2,9 @@
 
 import os,sys,socket
 import shutil
+
+import time
+
 sys.path.append('/opt/hltd/python')
 #from fillresources import *
 
@@ -22,7 +25,7 @@ try:
 except:pass
 
 hltdconf = '/etc/hltd.conf'
-busconfig = '/etc/appliance/resources/bus.config'
+busconfig = '/etc/appliance/bus.config'
 elasticsysconf = '/etc/sysconfig/elasticsearch'
 elasticconf = '/etc/elasticsearch/elasticsearch.yml'
 
@@ -35,7 +38,13 @@ default_eqset_daq2val = 'eq_140325_attributes'
 #default_eqset_daq2 = 'eq_140430_mounttest'
 #default_eqset_daq2 = 'eq_14-508_emu'
 default_eqset_daq2 = 'eq_140522_emu'
-
+minidaq_list = ["bu-c2f13-25-01","bu-c2f13-27-01","fu-c2f13-19-01",
+                "fu-c2f13-19-02","fu-c2f13-19-03","fu-c2f13-19-04"]
+dqm_list = ["bu-c2f13-31-01","fu-c2f13-39-01","fu-c2f13-39-02",
+            "fu-c2f13-39-03","fu-c2f13-39-04"]
+ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
+           "fu-c2f13-41-03","fu-c2f13-41-04"]
+myhost = os.uname()[1]
 
 def countCPUs():
     fp=open('/proc/cpuinfo','r')
@@ -46,7 +55,7 @@ def countCPUs():
     return resource_count
 
 def getmachinetype():
-    myhost = os.uname()[1]
+
     #print "running on host ",myhost
     if   myhost.startswith('dvrubu-') : return 'daq2val','fu'
     elif myhost.startswith('dvbu-') : return 'daq2val','bu'
@@ -57,6 +66,7 @@ def getmachinetype():
     else: 
        print "debug"
        return 'unknown','unknown'
+    
 
 def getIPs(hostname):
     try:
@@ -66,13 +76,24 @@ def getIPs(hostname):
         raise ex
     return ips
 
+def getTimeString():
+    tzones = time.tzname
+    if len(tzones)>1:zone=str(tzones[1])
+    else:zone=str(tzones[0])
+    return str(time.strftime("%H:%M:%S"))+" "+time.strftime("%d-%b-%Y")+" "+zone
+
+
 def checkModifiedConfigInFile(file):
 
     f = open(file)
     lines = f.readlines(2)#read first 2
     f.close()
+    tzones = time.tzname
+    if len(tzones)>1:zone=tzones[1]
+    else:zone=tzones[0]
+
     for l in lines:
-        if l.strip().startswith("#edited by fff meta rpm"):
+        if l.strip().startswith("#edited by fff meta rpm at "+getTimeString()):
             return True
     return False
     
@@ -80,7 +101,7 @@ def checkModifiedConfigInFile(file):
 
 def checkModifiedConfig(lines):
     for l in lines:
-        if l.strip().startswith("#edited by fff meta rpm"):
+        if l.strip().startswith("#edited by fff meta rpm at "+getTimeString()):
             return True
     return False
     
@@ -299,7 +320,7 @@ def restoreFileMaybe(file):
         pass
 
 #main function
-if True:
+if __name__ == "__main__":
     argvc = 1
     if not sys.argv[argvc]:
         print "selection of packages to set up (hltd and/or elastic) missing"
@@ -410,9 +431,15 @@ if True:
        
 
     if cluster == 'daq2val':
-        runindex_name = 'runindex'
+        runindex_name = 'dv'
     elif cluster == 'daq2':
-        runindex_name = 'runindex_prod'
+        runindex_name = 'cdaq'
+        if myhost in minidaq_list:
+             runindex_name = 'minidaq'
+        if myhost in dqm_list:
+             runindex_name = 'dqm'
+        if myhost in ed_list:
+             runindex_name = 'ed'
         #hardcode minidaq hosts until role is available
         #if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
         #    runindex_name = 'runindex_minidaq'
@@ -420,8 +447,6 @@ if True:
         #if cnhostname == 'bu-c2f13-31-01.cms' or cnhostname == 'fu-c2f13-39-01.cms' or cnhostname == 'fu-c2f13-39-02.cms' or cnhostname == 'fu-c2f13-39-03.cms' or cnhostname == 'fu-c2f13-39-04.cms':
         #    runindex_name = 'runindex_dqm'
     else:
-        
-
         runindex_name = 'runindex_test' 
 
     buName = ''
@@ -499,9 +524,12 @@ if True:
         escfg = FileManager(elasticconf,':',esEdited,'',' ')
 
         escfg.reg('cluster.name',clusterName)
+        escfg.reg('node.name',cnhostname)
+        essyscfg = FileManager(elasticsysconf,'=',essysEdited)
+        essyscfg.reg('ES_HEAP_SIZE','1G')
+        essyscfg.commit()
+
         if type == 'fu':
-            essyscfg = FileManager(elasticsysconf,'=',essysEdited)
-            essyscfg.reg('ES_HEAP_SIZE','512M')
             escfg.reg('discovery.zen.ping.multicast.enabled','false')
             if env=="vm":
                 escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + "\"]")
@@ -509,10 +537,10 @@ if True:
                 escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
             escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
+            escfg.reg('indices.fielddata.cache.size', '50%')
             if cluster != 'test':
                 escfg.reg('node.master','false')
                 escfg.reg('node.data','true')
-            essyscfg.commit()
         if type == 'bu':
             escfg.reg('network.publish_host',es_publish_host)
             #escfg.reg('discovery.zen.ping.multicast.enabled','false')
@@ -535,6 +563,7 @@ if True:
           pass
 
       #write bu ip address
+        print "WRITING BUS CONFIG ", busconfig
         f = open(busconfig,'w+')
         f.writelines(getIPs(buDataAddr)[0])
         f.close()
@@ -545,6 +574,7 @@ if True:
         shutil.copy(hltdconf,os.path.join(backup_dir,os.path.basename(hltdconf)))
       hltdcfg = FileManager(hltdconf,'=',hltdEdited,' ',' ')
 
+      hltdcfg.reg('enabled','True','[General]')
       if type=='bu':
       
           #get needed info here

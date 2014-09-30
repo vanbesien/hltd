@@ -150,8 +150,8 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: fffmeta
-Version: 1.3.4
-Release: 3
+Version: 1.5.0
+Release: 1
 Summary: hlt daemon
 License: gpl
 Group: DAQ
@@ -160,7 +160,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.2.0, hltd >= 1.3.4, cx_Oracle >= 5.1.2, java-1.7.0-openjdk
+Requires:elasticsearch >= 1.2.0, hltd >= 1.4.0, cx_Oracle >= 5.1.2, java-1.7.0-openjdk
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py
@@ -186,6 +186,7 @@ mkdir -p \$RPM_BUILD_ROOT
 
 mkdir -p opt/fff/esplugins
 mkdir -p opt/fff/backup
+mkdir -p etc/init.d/
 cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
 echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
 echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
@@ -194,11 +195,9 @@ cp $BASEDIR/esplugins/$pluginfile1 %{buildroot}/opt/fff/esplugins/$pluginfile1
 cp $BASEDIR/esplugins/install.sh %{buildroot}/opt/fff/esplugins/install.sh
 cp $BASEDIR/esplugins/uninstall.sh %{buildroot}/opt/fff/esplugins/uninstall.sh
 
-
-mkdir -p etc/init.d/
 echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
-echo "# chkconfig:   2345 79 19"         >> %{buildroot}/etc/init.d/fffmeta
+echo "# chkconfig:   2345 79 22"         >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/fffmeta
 echo "  /opt/fff/configurefff.sh"  >> %{buildroot}/etc/init.d/fffmeta
@@ -218,6 +217,8 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 %defattr(-, root, root, -)
 #/opt/fff
 %attr( 755 ,root, root) /opt/fff/setupmachine.py
+%attr( 755 ,root, root) /opt/fff/setupmachine.pyc
+%attr( 755 ,root, root) /opt/fff/setupmachine.pyo
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
 %attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1
@@ -226,7 +227,9 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 
 %post
 #echo "post install trigger"
-chkconfig fffmeta on
+chkconfig --del fffmeta
+chkconfig --add fffmeta
+#disabled, can be run manually for now
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
@@ -241,7 +244,8 @@ echo /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1
 echo /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
 /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
 /sbin/service elasticsearch start
-chkconfig elasticsearch on
+chkconfig --del elasticsearch
+chkconfig --add elasticsearch
 
 #taskset elasticsearch process
 #sleep 1
@@ -270,14 +274,18 @@ fi
 /opt/hltd/python/fillresources.py
 
 /sbin/service hltd restart
-chkconfig hltd on
+chkconfig --del hltd
+#chkconfig --del soap2file
+chkconfig --add hltd
+#chkconfig --add soap2file
 %preun
 
 if [ \$1 == 0 ]; then 
 
-  chkconfig fffmeta off
-  chkconfig elasticsearch off
-  chkconfig hltd off
+  chkconfig --del fffmeta
+  chkconfig --del elasticsearch
+  chkconfig --del hltd
+#  chkconfig --del soap2file
 
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true

@@ -554,13 +554,33 @@ class LumiSectionHandler():
                 for datfile in datfilelist:
                     if datfile.stream == stream:
                         newfilepath = os.path.join(self.outdir,datfile.run,datfile.basename)
-                        datfile.moveFile(newfilepath)
+                        (filestem,ext)=os.path.splitext(datfile.filepath)
+                        checksum_file = filestem+'.checksum'
+                        doChecksum=conf.output_adler32
+                        checksum_cmssw=None
+                        try:
+                            with open(checksum_file,"r") as fi:
+                                checksum_cmssw = int(fi.read())
+                        except:
+                            doChecksum=False
+                            pass
+                        (status,checksum)=datfile.moveFile(newfilepath,adler32=doChecksum)
+                        if doChecksum and status:
+                            if checksum_cmssw!=checksum&0xffffffff:
+                                self.logger.fatal("checksum mismatch for "+ datfile.filepath + " expected:" + str(checksum_cmssw) + " got:" + str(checksum))
+                        if checksum_cmssw!=None:
+                                outfile.setFieldByName("FileAdler32",str(checksum_cmssw&0xffffffff))
+                                outfile.writeout()
+                        try:
+                            os.unlink(filestem+'.checksum')
+                        except:pass
                         self.datfileList.remove(datfile)
 
-                #move output file in rundir
+                #move output json file in rundir
                 newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
                 outfile.esCopy()
-                if outfile.moveFile(newfilepath):
+                result,checksum=outfile.moveFile(newfilepath)
+                if result:
                     self.outfileList.remove(outfile)
  
                 
@@ -591,6 +611,7 @@ class LumiSectionHandler():
             numErr = errfile.getFieldByName("ErrorEvents") or 0
             total = self.totalEvent
             errfile.setFieldByName("Processed", str(total - numErr) )
+            errfile.setFieldByName("FileAdler32", "-1", warning=False)
             errfile.writeout()
             newfilepath = os.path.join(self.outdir,errfile.run,errfile.basename)
             errfile.moveFile(newfilepath)

@@ -12,6 +12,7 @@ import Queue
 
 from hltdconf import *
 from aUtils import *
+import mappings
 
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -51,227 +52,25 @@ class elasticBandBU:
     def __init__(self,es_server_url,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es_server_url=es_server_url
-        self.index_name=conf.elastic_runindex_name
+        self.runindex_write="runindex_"+conf.elastic_runindex_name+"_write"
+        self.runindex_read="runindex_"+conf.elastic_runindex_name+"_read"
+        self.runindex_name="runindex_"+conf.elastic_runindex_name
+        self.boxinfo_write="boxinfo_"+conf.elastic_runindex_name+"_write"
+        self.boxinfo_read="boxinfo_"+conf.elastic_runindex_name+"_read"
+        self.boxinfo_name="boxinfo_"+conf.elastic_runindex_name
         self.runnumber = str(runnumber)
         self.startTime = startTime
         self.host = os.uname()[1]
         self.stopping=False
         self.threadEvent = threading.Event()
         self.runMode=runMode
-        self.settings = {
-            "analysis":{
-                "analyzer": {
-                    "prefix-test-analyzer": {
-                        "type": "custom",
-                        "tokenizer": "prefix-test-tokenizer"
-                    }
-                },
-                "tokenizer": {
-                    "prefix-test-tokenizer": {
-                        "type": "path_hierarchy",
-                        "delimiter": " "
-                    }
-                }
-             },
-            "index":{
-                'number_of_shards' : 10,
-                'number_of_replicas' : 3
-            },
-        }
+        self.boxinfoFUMap = {}
+        self.ip_url=None
+        self.updateIndexMaybe(self.runindex_name,self.runindex_write,self.runindex_read,mappings.central_es_settings,mappings.central_runindex_mapping)
+        self.updateIndexMaybe(self.boxinfo_name,self.boxinfo_write,self.boxinfo_read,mappings.central_es_settings,mappings.central_boxinfo_mapping)
 
-        self.run_mapping = {
-            'run' : {
-#                '_routing' :{
-#                    'required' : True,
-#                    'path'     : 'runNumber'
-#                },
-                '_id' : {
-                    'path' : 'runNumber'
-                },
-                'properties' : {
-                    'runNumber':{
-                        'type':'integer'
-                        },
-                    'startTimeRC':{
-                        'type':'date'
-                            },
-                    'stopTimeRC':{
-                        'type':'date'
-                            },
-                    'startTime':{
-                        'type':'date'
-                            },
-                    'endTime':{
-                        'type':'date'
-                            },
-                    'completedTime' : {
-                        'type':'date'
-                            }
-                },
-                '_timestamp' : {
-                    'enabled' : True,
-                    'store'   : 'yes'
-                    }
-            },
-            'microstatelegend' : {
-
-                '_id' : {
-                    'path' : 'id'
-                },
-                '_parent':{'type':'run'},
-                'properties' : {
-                    'names':{
-                        'type':'string'
-                        },
-                    'id':{
-                        'type':'string'
-                        }
-                    }
-            },
-            'pathlegend' : {
-
-                '_id' : {
-                    'path' : 'id'
-                },
-                '_parent':{'type':'run'},
-                'properties' : {
-                    'names':{
-                        'type':'string'
-                        },
-                    'id':{
-                        'type':'string'
-                        }
-
-                    }
-                },
-            'boxinfo' : {
-                '_id'        :{'path':'id'},#TODO:remove
-                'properties' : {
-                    'fm_date'       :{'type':'date'},
-                    'id'            :{'type':'string'},
-                    'broken'        :{'type':'integer'},
-                    'used'          :{'type':'integer'},
-                    'idles'         :{'type':'integer'},
-                    'quarantined'   :{'type':'integer'},
-                    'usedDataDir'   :{'type':'integer'},
-                    'totalDataDir'  :{'type':'integer'},
-                    'usedRamdisk'   :{'type':'integer'},
-                    'totalRamdisk'  :{'type':'integer'},
-                    'usedOutput'    :{'type':'integer'},
-                    'totalOutput'   :{'type':'integer'},
-                    'activeRuns'    :{'type':'string'}
-                    },
-                '_timestamp' : { 
-                    'enabled'   : True,
-                    'store'     : "yes",
-                    "path"      : "fm_date"
-                    },
-                '_ttl'       : { 'enabled' : True,
-                              'default' :  '30d'
-                    }
-                },
-
-            'boxinfo_last' : {
-                '_id'        :{'path':'id'},
-                'properties' : {
-                    'fm_date'       :{'type':'date'},
-                    'id'            :{'type':'string'},
-                    'broken'        :{'type':'integer'},
-                    'used'          :{'type':'integer'},
-                    'idles'         :{'type':'integer'},
-                    'quarantined'   :{'type':'integer'},
-                    'usedDataDir'   :{'type':'integer'},
-                    'totalDataDir'  :{'type':'integer'},
-                    'usedRamdisk'   :{'type':'integer'},
-                    'totalRamdisk'  :{'type':'integer'},
-                    'usedOutput'    :{'type':'integer'},
-                    'totalOutput'   :{'type':'integer'},
-                    'activeRuns'    :{'type':'string'}
-                    },
-                '_timestamp' : { 
-                    'enabled'   : True,
-                    'store'     : "yes",
-                    "path"      : "fm_date"
-                    }
-                },
-
-            'eols' : {
-                '_id'        :{'path':'id'},
-                '_parent'    :{'type':'run'},
-                'properties' : {
-                    'fm_date'       :{'type':'date'},
-                    'id'            :{'type':'string'},
-                    'ls'            :{'type':'integer'},
-                    'NEvents'       :{'type':'integer'},
-                    'NFiles'        :{'type':'integer'},
-                    'TotalEvents'   :{'type':'integer'}
-                    },
-                '_timestamp' : { 
-                    'enabled'   : True,
-                    'store'     : "yes",
-                    "path"      : "fm_date"
-                    },
-                },
-            'minimerge' : {
-                '_id'        :{'path':'id'},
-                '_parent'    :{'type':'run'},
-                'properties' : {
-                    'fm_date'       :{'type':'date'},
-                    'id'            :{'type':'string'}, #run+appliance+stream+ls
-                    'appliance'     :{'type':'string'},
-                    'stream'        :{'type':'string','index' : 'not_analyzed'},
-                    'ls'            :{'type':'integer'},
-                    'processed'     :{'type':'integer'},
-                    'accepted'      :{'type':'integer'},
-                    'errorEvents'   :{'type':'integer'},
-                    'size'          :{'type':'integer'},
-                    }
-                }
-            }
-
-
-        connectionAttempts=0
-        while True:
-            if self.stopping:break
-            connectionAttempts+=1
-            try:
-                self.logger.info('writing to elastic index '+self.index_name)
-                ip_url=getURLwithIP(es_server_url)
-                self.es = ElasticSearch(es_server_url)
-                self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
-                break
-            except ElasticHttpError as ex:
-                #this is normally fine as the index gets created somewhere across the cluster
-                if "IndexAlreadyExistsException" in str(ex):
-                    self.logger.info(ex)
-                    break
-                if "InvalidIndexNameException" in str(ex):
-                    self.logger.info(ex)
-                    break
-                else:
-                    self.logger.error(ex)
-                    if runMode and connectionAttempts>100:
-                        self.logger.error('elastic (BU): exiting after 100 ElasticHttpError reports from '+ es_server_url)
-                        sys.exit(1)
-                    elif runMode==False and connectionAttempts>10:
-                        self.threadEvent.wait(60)
-                    else:
-                        self.threadEvent.wait(1)
-                    continue
-
-            except (ConnectionError,Timeout) as ex:
-                #try to reconnect with different IP from DNS load balancing
-                if runMode and connectionAttempts>100:
-                   self.logger.error('elastic (BU): exiting after 100 connection attempts to '+ es_server_url)
-                   sys.exit(1)
-                elif runMode==False and connectionAttempts>10:
-                   self.threadEvent.wait(60)
-                else:
-                   self.threadEvent.wait(1)
-                continue
-            
         #write run number document
-        if runMode == True:
+        if runMode == True and self.stopping==False:
             document = {}
             document['runNumber'] = self.runnumber
             document['startTime'] = startTime
@@ -280,6 +79,57 @@ class elasticBandBU:
             #except ElasticHttpError as ex:
             #    self.logger.info(ex)
             #    pass
+
+
+    def updateIndexMaybe(self,index_name,alias_write,alias_read,settings,mapping):
+        connectionAttempts=0
+        retry=False
+        while True:
+            if self.stopping:break
+            connectionAttempts+=1
+            try:
+                if retry or self.ip_url==None:
+                    self.ip_url=getURLwithIP(self.es_server_url)
+                    self.es = ElasticSearch(self.es_server_url)
+
+                #check if runindex alias exists
+                self.logger.info('writing to elastic index '+alias_write)
+                if requests.get(self.es_server_url+'/_alias/'+alias_write).status_code == 200: 
+                    self.createDocMappingsMaybe(alias_write,mapping)
+                break
+            except ElasticHttpError as ex:
+                #es error, retry
+                self.logger.error(ex)
+                if self.runMode and connectionAttempts>100:
+                    self.logger.error('elastic (BU): exiting after 100 ElasticHttpError reports from '+ self.es_server_url)
+                    sys.exit(1)
+                elif self.runMode==False and connectionAttempts>10:
+                    self.threadEvent.wait(60)
+                else:
+                    self.threadEvent.wait(1)
+                retry=True
+                continue
+
+            except (ConnectionError,Timeout) as ex:
+                #try to reconnect with different IP from DNS load balancing
+                if self.runMode and connectionAttempts>100:
+                   self.logger.error('elastic (BU): exiting after 100 connection attempts to '+ self.es_server_url)
+                   sys.exit(1)
+                elif self.runMode==False and connectionAttempts>10:
+                   self.threadEvent.wait(60)
+                else:
+                   self.threadEvent.wait(1)
+                retry=True
+                continue
+
+    def createDocMappingsMaybe(self,index_name,mapping):
+        #update in case of new documents added to mapping definition
+        for key in mapping:
+            doc = {key:mapping[key]}
+            res = requests.get(self.ip_url+'/'+index_name+'/'+key+'/_mapping')
+            #only update if mapping is empty
+            if res.status_code==200 and res.content.strip()=='{}':
+                requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',json.dumps(doc))
 
     def resetURL(url):
         self.es = None
@@ -326,19 +176,48 @@ class elasticBandBU:
 
         basename = infile.basename
         self.logger.debug(basename)
+        current_time = time.time()
+        if basename.startswith('fu'):
+            try:
+                self.boxinfoFUMap[basename] = [infile.data,current_time]
+            except Exception as ex:
+                self.logger.warning('box info not injected: '+str(ex))
+                return
         try:
             document = infile.data
-            #TODO:let dynamic ID
-            document['id']= basename + '_' + document['fm_date'].split('.')[0] #TODO:remove
-            documents = [document]
-        except:
-            #in case of malformed box info
+            document['id']=basename
+            self.index_documents('boxinfo',[document])
+        except Exception as ex:
+            self.logger.warning('box info not injected: '+str(ex))
             return
-        self.index_documents('boxinfo',documents)
-        #self.logger.info(str(document))#check that ID is not present...
-        #TODO:write unique boxinfo
-        #documents[0]['id']=basename
-        #self.index_documents('boxinfo_last',documents)
+        if basename.startswith('bu') or basename.startswith('dvbu'):
+            try:
+                document = infile.data
+                #aggregation from FUs
+                document['idles']=0
+                document['used']=0
+                document['broken']=0
+                document['quarantined']=0
+                document['usedDataDir']=0
+                document['totalDataDir']=0
+                document['hosts']=[basename]
+                for key in self.boxinfoFUMap:
+                        dpair = self.boxinfoFUMap[key]
+                        d = dpair[0]
+                        #check if entry is not older than 10 seconds
+                        if current_time - dpair[1] > 10:continue
+                        document['idles']+=int(d['idles'])
+                        document['used']+=int(d['used'])
+                        document['broken']+=int(d['broken'])
+                        document['quarantined']+=int(d['quarantined'])
+                        document['usedDataDir']+=int(d['usedDataDir'])
+                        document['totalDataDir']+=int(d['totalDataDir'])
+                        document['hosts'].append(key)
+                self.index_documents('boxinfo_appliance',[document],bulk=False)
+            except Exception as ex:
+                #in case of malformed box info
+                self.logger.warning('box info not injected: '+str(ex))
+                return
 
     def elasticize_eols(self,infile):
         basename = infile.basename
@@ -373,12 +252,20 @@ class elasticBandBU:
         documents = [document]
         self.index_documents('minimerge',documents)
 
-    def index_documents(self,name,documents):
+    def index_documents(self,name,documents,bulk=True):
         attempts=0
+        destination_index = ""
+        if name.startswith("boxinfo"):
+          destination_index = self.boxinfo_write
+        else:
+          destination_index = self.runindex_write
         while True:
             attempts+=1
             try:
-                self.es.bulk_index(self.index_name,name,documents)
+                if bulk:
+                    self.es.bulk_index(destination_index,name,documents)
+                else:
+                    self.es.index(destination_index,name,documents[0])
                 return True
             except ElasticHttpError as ex:
                 if attempts<=1:continue
@@ -422,6 +309,8 @@ class elasticCollectorBU():
     def run(self):
         self.logger.info("Start main loop")
         count = 0
+        indexed_runend=False
+        timeout_start=None
         while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
             if self.source:
                 try:
@@ -429,8 +318,13 @@ class elasticCollectorBU():
                     self.eventtype = event.mask
                     self.infile = fileHandler(event.fullpath)
                     self.emptyQueue.clear()
-                    self.process() 
+                    if timeout_start != None:
+                        timeout_start=time.time()
+                    self.process()
                 except (KeyboardInterrupt,Queue.Empty) as e:
+                    if timeout_start != None:
+                        #exit after 10 min if no new files seen
+                        if time.time()-timeout_start>600:break
                     self.emptyQueue.set()
                 except (ValueError,IOError) as ex:
                     self.logger.exception(ex)
@@ -438,13 +332,16 @@ class elasticCollectorBU():
                 time.sleep(1.0)
             #check for EoR file every 5 intervals
             count+=1
-            if (count%5) == 0:
+            if indexed_runend==False and (count%5) == 0:
                 if os.path.exists(self.eorCheckPath):
                     if es:
                         dt=os.path.getctime(self.eorCheckPath)
                         endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
                         es.elasticize_runend_time(endtime)
-                    break
+                    indexed_runend=True
+                    #start checking if idle
+                    timeout_start = time.time()
+                    continue
                 if False==os.path.exists(self.eorCheckPath[:self.eorCheckPath.rfind('/')]):
                     #run dir deleted
                     break
@@ -584,7 +481,7 @@ class BoxInfoUpdater(threading.Thread):
 
 class RunCompletedChecker(threading.Thread):
 
-    def __init__(self,mode,nr,nresources,run_dir,active_runs):
+    def __init__(self,mode,nr,nresources,run_dir,active_runs,elastic_process):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.mode = mode
         self.nr = nr
@@ -593,9 +490,7 @@ class RunCompletedChecker(threading.Thread):
         self.eorCheckPath = os.path.join(self.rundirCheckPath,'run' +  str(nr).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn')
         self.url = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
         self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
-        self.logurlclose = 'http://localhost:9200/log_run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
-
-        self.urlsearch = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_search?size=1'
+        self.urlsearch = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_search?size=1'
         self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
 
 
@@ -603,6 +498,7 @@ class RunCompletedChecker(threading.Thread):
         self.threadEvent = threading.Event()
         self.run_dir = run_dir
         self.active_runs = active_runs
+        self.elastic_process=elastic_process
         try:
             threading.Thread.__init__(self)
 
@@ -665,7 +561,11 @@ class RunCompletedChecker(threading.Thread):
         self.threadEvent.wait(10)
         while self.stop == False:
             self.threadEvent.wait(5)
-            if self.stop: return#giving up
+            if self.stop:
+                try:
+                    self.elastic_process.wait()
+                except:pass
+                return#giving up
             if os.path.exists(self.eorCheckPath) or os.path.exists(self.rundirCheckPath)==False:
                 break
 
@@ -693,10 +593,12 @@ class RunCompletedChecker(threading.Thread):
                             dataq = json.loads(respq.content)
                             fm_time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
                             #fill in central index completition time
-                            #EXPERIMENTAL!
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
-                            requests.post(conf.es_runindex_url+'/'+conf.es_runindex_name+'/run',putq)
+                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',postq)
                             self.logger.info("filled in completition time for run"+str(self.nr))
+                        except IndexError:
+                            # 0 FU resources present in this run, skip writing completition time
+                            pass 
                         except Exception as ex:
                             self.logger.exception(ex)
                         try:
@@ -722,11 +624,15 @@ class RunCompletedChecker(threading.Thread):
                     self.logger.exception(ex)
                     check_es_complete=False
 
-            #exit fi both checks are complete
-            if check_boxes==False and check_es_complete==False:return
+            #exit if both checks are complete
+            if check_boxes==False and check_es_complete==False:break
             #check every 10 seconds
             self.threadEvent.wait(10)
 
+        try:
+            self.elastic_process.wait()
+        except:pass
+ 
     def stop(self):
         self.stop = True
         self.threadEvent.set() 

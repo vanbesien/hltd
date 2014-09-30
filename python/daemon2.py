@@ -1,8 +1,9 @@
 import sys, os, time, atexit
-import procname
+import subprocess
 from signal import SIGINT
 from aUtils import * #for stdout and stderr redirection
-
+import ConfigParser
+import re
 
 class Daemon2:
     """
@@ -65,9 +66,6 @@ class Daemon2:
         os.dup2(se.fileno(), sys.stderr.fileno())
         sys.stderr = stdErrorLog()
         sys.stdout = stdOutLog()
-
-        #change process name
-        procname.setprocname(self.processname)
 
         # write pidfile
         atexit.register(self.delpid)
@@ -175,6 +173,7 @@ class Daemon2:
                   sys.stdout.write("\nterminating with -9...")
                   os.kill(pid,9)
                   sys.stdout.write("\nterminated after 5 seconds\n")
+                  self.emergencyUmount()
                   time.sleep(0.5)
                 os.kill(pid,0)
                 sys.stdout.write('.')
@@ -207,3 +206,48 @@ class Daemon2:
         You should override this method when you subclass Daemon2. It will be called after the process has been
         daemonized by start() or restart().
         """
+
+    def emergencyUmount(self):
+
+        cfg = ConfigParser.SafeConfigParser()
+        cfg.read('/etc/hltd.conf')
+
+        bu_base_dir=None#/fff/BU0?
+        ramdisk_subdirectory = 'ramdisk'
+        output_subdirectory = 'output'
+       
+        for sec in cfg.sections():
+            for item,value in cfg.items(sec):
+                if item=='ramdisk_subdiretory':ramdisk_subdirectory=value
+                if item=='output_subdirectory':output_subdirectory=value
+                if item=='bu_base_dir':bu_base_dir=value
+
+
+
+        process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
+        out = process.communicate()[0]
+        mounts = re.findall('/'+bu_base_dir+'[0-9]+',out)
+        if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
+        for point in mounts:
+            sys.stdout.write("trying emergency umount of "+point+"\n")
+            try:
+                subprocess.check_call(['umount','/'+point])
+            except subprocess.CalledProcessError, err1:
+                pass
+            except Exception as ex:
+                sys.stdout.write(ex.args[0]+"\n")
+            try:
+                subprocess.check_call(['umount',os.path.join('/'+point,ramdisk_subdirectory)])
+            except subprocess.CalledProcessError, err1:
+                sys.stdout.write("Error calling umount in cleanup_mountpoints\n")
+                sys.stdout.write(str(err1.returncode)+"\n")
+            except Exception as ex:
+                sys.stdout.write(ex.args[0]+"\n")
+            try:
+                subprocess.check_call(['umount',os.path.join('/'+point,output_subdirectory)])
+            except subprocess.CalledProcessError, err1:
+                sys.stdout.write("Error calling umount in cleanup_mountpoints\n")
+                sys.stdout.write(str(err1.returncode)+"\n")
+            except Exception as ex:
+                sys.stdout.write(ex.args[0]+"\n")
+ 

@@ -43,6 +43,7 @@ mkdir -p usr/lib64/python2.6/site-packages
 mkdir -p usr/lib64/python2.6/site-packages/pyelasticsearch
 ls
 cp -r $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
+cp -r $BASEDIR/python/soap2file.py $TOPDIR/etc/init.d/soap2file
 cp -r $BASEDIR/* $TOPDIR/opt/hltd
 cp -r $BASEDIR/etc/hltd.conf $TOPDIR/etc/
 cp -r $BASEDIR/etc/logrotate.d/hltd $TOPDIR/etc/logrotate.d/
@@ -155,8 +156,8 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.3.4
-Release: 5
+Version: 1.5.0
+Release: 2
 Summary: hlt daemon
 License: gpl
 Group: DAQ
@@ -170,6 +171,7 @@ Provides:/opt/hltd
 Provides:/etc/hltd.conf
 Provides:/etc/logrotate.d/hltd
 Provides:/etc/init.d/hltd
+Provides:/etc/init.d/soap2file
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
 Requires:python,libcap,python-six,python-requests,SOAPpy,python-simplejson >= 3.3.1
 
@@ -202,6 +204,7 @@ rm -rf /etc/appliance/except/*
 /etc/hltd.conf
 /etc/logrotate.d/hltd
 /etc/init.d/hltd
+/etc/init.d/soap2file
 /etc/appliance
 /usr/lib64/python2.6/site-packages/*prctl*
 /usr/lib64/python2.6/site-packages/*watcher*

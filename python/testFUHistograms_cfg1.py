@@ -116,7 +116,8 @@ process.source = cms.Source("FedRawDataInputSource",
                             testModeNoBuilderUnit = cms.untracked.bool(False),
                             eventChunkSize = cms.untracked.uint32(128),
                             numBuffers = cms.untracked.uint32(2),
-                            eventChunkBlock = cms.untracked.uint32(128)
+                            eventChunkBlock = cms.untracked.uint32(128),
+                            useL1EventID=cms.untracked.bool(True)
                             )
 
 
