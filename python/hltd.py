@@ -99,7 +99,7 @@ def cleanup_mountpoints(remount=True):
                 os.makedirs(os.path.join(conf.bu_base_dir,conf.output_subdirectory))
             except OSError:
                 pass
-            return
+            return True
     try:
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
@@ -228,7 +228,7 @@ def cleanup_mountpoints(remount=True):
         logging.exception(ex)
         if remount==True:
             logging.fatal("Unable to handle (un)mounting")
-            #sys.exit(1)
+            return False
         else:return False
 
 def calculate_threadnumber():
@@ -1812,7 +1812,10 @@ class hltd(Daemon2,object):
             httpd.socket.close()
             logging.info(threading.enumerate())
             logging.info("unmounting mount points")
-            cleanup_mountpoints(remount=False)
+            if cleanup_mountpoints(remount=False)==False:
+              time.sleep(1)
+              cleanup_mountpoints(remount=False)
+            
             logging.info("shutdown of service completed")
         except Exception as ex:
             logging.info("exception encountered in operating hltd")
