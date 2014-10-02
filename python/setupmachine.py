@@ -429,17 +429,31 @@ if __name__ == "__main__":
     else:
         cnhostname = os.uname()[1]+'.cms'
        
-
+    use_elasticsearch = 'True'
+    cmssw_version = 'CMSSW_7_1_4_patch1'
+    dqmmachine = 'False'
+    execdir = '/opt/hltd'
+    resourcefract = '0.5'
     if cluster == 'daq2val':
-        runindex_name = 'dv'
+        runindex_name = 'dv'        
     elif cluster == 'daq2':
         runindex_name = 'cdaq'
         if myhost in minidaq_list:
-             runindex_name = 'minidaq'
+            runindex_name = 'minidaq'
         if myhost in dqm_list:
-             runindex_name = 'dqm'
+            use_elasticsearch = 'False'
+            runindex_name = 'dqm'
+            cmsswloglevel = 'DISABLED'
+            dqmmachine = 'True'
+            username = 'dqmpro'
+            if type == 'fu':
+                cmsswloglevel = 'ERROR'
+                cmssw_version = '' 
+                cmssw_base = '/home/dqmprolocal'
+                execdir = '/home/dqmprolocal/output' ##not yet
+                resourcefract = '1.0'
         if myhost in ed_list:
-             runindex_name = 'ed'
+            runindex_name = 'ed'
         #hardcode minidaq hosts until role is available
         #if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
         #    runindex_name = 'runindex_minidaq'
@@ -584,6 +598,9 @@ if __name__ == "__main__":
           hltdcfg.reg('micromerge_output','/fff/output','[General]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
+          hltdcfg.reg('use_elasticsearch',use_elasticsearch,'[Monitoring]')
+          hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
+          hltdcfg.reg('dqm_machine',dqmmachine,'[DQM]')
           #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
           #remove /fff/data from BU (hack)
@@ -601,7 +618,7 @@ if __name__ == "__main__":
           #num_threads_done = False
           #do_num_threads = True
           #num_threads = nthreads 
- 
+          hltdcfg.reg('exec_directory',execdir,'[General]') 
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('watch_directory','/fff/data','[General]')
           hltdcfg.reg('role','fu','[General]')
@@ -610,10 +627,13 @@ if __name__ == "__main__":
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
+          hltdcfg.reg('use_elasticsearch',use_elasticsearch,'[Monitoring]')
+          hltdcfg.reg('dqm_machine',dqmmachine,'[DQM]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
+          hltdcfg.reg('cmssw_default_version',cmssw_version,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.reg('cmssw_streams',nfwkstreams,'[CMSSW]')
-          #hltdcfg.reg('resource_use_fraction',"0.7",'[Resources]')
+          hltdcfg.reg('resource_use_fraction',resourcefract,'[Resources]')
           #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
 
