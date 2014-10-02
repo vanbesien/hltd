@@ -503,7 +503,8 @@ class CMSSWLogESWriter(threading.Thread):
         self.index_suffix = conf.elastic_cluster
         self.eb = elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
         self.contextualCounter = ContextualCounter()
-        if self.indexCreated==True:self.initialized=True 
+        #if self.indexCreated==True:self.initialized=True 
+        self.initialized=True 
 
     def run(self):
         while self.abort == False:

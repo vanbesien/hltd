@@ -24,7 +24,7 @@ class elasticBand():
         self.prcinBuffer = {}   # {"lsX": doclist}
         self.prcoutBuffer = {}
         self.fuoutBuffer = {}
-        self.es = ElasticSearch(es_server_url) 
+        self.es = ElasticSearch(es_server_url,timeout=20) 
         self.hostname = os.uname()[1]
         self.hostip = socket.gethostbyname_ex(self.hostname)[2][0]
         self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
@@ -280,55 +280,57 @@ class elasticBand():
                        }
 
         #create ES index and alias
-        attempts = 10
-        attemptsConn = 6
-        while True:
-            try:
-                self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
-                break
-            except IndexAlreadyExistsError:
-                self.indexCreated=True
-                return
-                #index already created (between logcollector and elastic)
-            except ElasticHttpError as ex:
-                attempts-=1
-                if attempts==0:
-                    if "IndexAlreadyExists" in str(ex):
-                        self.indexCreated=True
-                        return
-                    self.logger.error('Unable to create index '+str(self.indexName)+'.Exiting.')
-                    self.logger.error(str(ex))
-                    return
-                continue
-            except (ConnectionError,Timeout) as ex:
-                attemptsConn-=1
-                if attemptsConn==0:
-                    self.logger.error('Unable to connect to local elasticsearch server.Exiting') 
-                    self.logger.error(str(ex))
-                    return
-                continue 
-        attempts = 10
-        attemptsConn = 3
-        while True:
-            try:
-                self.es.update_aliases(alias_command)
-                break
-            except ElasticHttpError as ex:
-                attempts-=1
-                if attempts==0:
-                    self.logger.error('Unable to create alias '+str(aliasName)+'.Exiting.')
-                    self.logger.error(str(ex))
-                    return
-                continue
-            except (ConnectionError,Timeout) as ex:
-                attemptsConn-=1
-                if attemptsConn==0:
-                    self.logger.error('Unable to connect to local elasticsearch server.Exiting') 
-                    self.logger.error(str(ex))
-                    return
-                continue
- 
-        self.indexCreated=True
+#        attempts = 10
+#        attemptsConn = 6
+#        while True:
+#            try:
+#                self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+#                break
+#            except IndexAlreadyExistsError:
+#                self.indexCreated=True
+#                return
+#                #index already created (between logcollector and elastic)
+#            except ElasticHttpError as ex:
+#                attempts-=1
+#                if attempts==0:
+#                    if "IndexAlreadyExists" in str(ex):
+#                        self.indexCreated=True
+#                        return
+#                    self.logger.error('Unable to create index '+str(self.indexName)+'.Exiting.')
+#                    self.logger.error(str(ex))
+#                    return
+#                continue
+#            except (ConnectionError,Timeout) as ex:
+#                 time.sleep(20)
+#                attemptsConn-=1
+#                if attemptsConn==0:
+#                    self.logger.error('Unable to connect to local elasticsearch server.Exiting') 
+#                    self.logger.error(str(ex))
+#                    return
+#                continue 
+#        attempts = 10
+#        attemptsConn = 3
+#        while True:
+#            try:
+#                self.es.update_aliases(alias_command)
+#                break
+#            except ElasticHttpError as ex:
+#                attempts-=1
+#                if attempts==0:
+#                    self.logger.error('Unable to create alias '+str(aliasName)+'.Exiting.')
+#                    self.logger.error(str(ex))
+#                    return
+#                continue
+#            except (ConnectionError,Timeout) as ex:
+#                 time.sleep(20)
+#                attemptsConn-=1
+#                if attemptsConn==0:
+#                    self.logger.error('Unable to connect to local elasticsearch server.Exiting') 
+#                    self.logger.error(str(ex))
+#                    return
+#                continue
+# 
+#        self.indexCreated=True
  
     def imbue_jsn(self,infile):
         with open(infile.filepath,'r') as fp:
@@ -390,7 +392,11 @@ class elasticBand():
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
-        self.es.index(self.indexName,'prc-s-state',datadict)
+        try:
+            self.es.index(self.indexName,'prc-s-state',datadict)
+        except (ConnectionError,Timeout) as ex:
+            self.logger.exception(ex)
+            time.sleep(2)
 
     def elasticize_prc_out(self,infile):
         document,ret = self.imbue_jsn(infile)
@@ -425,7 +431,6 @@ class elasticBand():
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
-
         
         document['data']=datadict
         document['ls']=int(ls[2:])
@@ -461,26 +466,42 @@ class elasticBand():
             for item in infile.definitions:
                 if item['name']!='Processed': legend.append(item['name'])
             datadict={'path-names':legend}
-            self.es.index(self.indexName,'hltrates-legend',datadict)
+            try:
+                self.es.index(self.indexName,'hltrates-legend',datadict)
+            except (ConnectionError,Timeout) as ex:
+                self.logger.exception(ex)
+                time.sleep(2)
             
         datadict={}
         datadict['ls'] = int(infile.ls[2:])
         datadict['pid'] = int(infile.pid[3:])
         datadict['path-accepted']=document['data'][1:]
         datadict['processed']=document['data'][0]
-        self.es.index(self.indexName,'hltrates',datadict)
+        try:
+            self.es.index(self.indexName,'hltrates',datadict)
+        except (ConnectionError,Timeout) as ex:
+            self.logger.exception(ex)
+            time.sleep(2)
         return True
  
     def elasticize_fu_complete(self,timestamp):
         document = {}
         document['host']=os.uname()[1]
         document['fm_date']=timestamp
-        self.es.index(self.indexName,'fu-complete',document)
+        try:
+            self.es.index(self.indexName,'fu-complete',document)
+        except (ConnectionError,Timeout) as ex:
+            self.logger.exception(ex)
+            time.sleep(2)
 
     def flushMonBuffer(self):
         if self.istateBuffer:
             self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
-            self.es.bulk_index(self.indexName,'prc-i-state',self.istateBuffer)
+            try:
+                self.es.bulk_index(self.indexName,'prc-i-state',self.istateBuffer)
+            except (ConnectionError,Timeout) as ex:
+                self.logger.exception(ex)
+                time.sleep(2)
             self.istateBuffer = []
 
     def flushLS(self,ls):
@@ -488,10 +509,14 @@ class elasticBand():
         prcinDocs = self.prcinBuffer.pop(ls) if ls in self.prcinBuffer else None
         prcoutDocs = self.prcoutBuffer.pop(ls) if ls in self.prcoutBuffer else None
         fuoutDocs = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
-        if prcinDocs: self.es.bulk_index(self.indexName,'prc-in',prcinDocs)        
-        if prcoutDocs: self.es.bulk_index(self.indexName,'prc-out',prcoutDocs)
-        if fuoutDocs: self.es.bulk_index(self.indexName,'fu-out',fuoutDocs)
-
+        try: 
+            if prcinDocs: self.es.bulk_index(self.indexName,'prc-in',prcinDocs)        
+            if prcoutDocs: self.es.bulk_index(self.indexName,'prc-out',prcoutDocs)
+            if fuoutDocs: self.es.bulk_index(self.indexName,'fu-out',fuoutDocs)
+        except (ConnectionError,Timeout) as ex:
+            self.logger.exception(ex)
+            time.sleep(2)
+ 
     def flushAll(self):
         self.flushMonBuffer()
         lslist = list(  set(self.prcinBuffer.keys()) | 
