@@ -3,6 +3,8 @@ import sys
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
+from pyelasticsearch.client import ConnectionError
+from pyelasticsearch.client import Timeout
 import json
 import csv
 import math
@@ -22,35 +24,25 @@ class elasticBand():
         self.prcinBuffer = {}   # {"lsX": doclist}
         self.prcoutBuffer = {}
         self.fuoutBuffer = {}
-        self.es = ElasticSearch(es_server_url) 
+        self.es = ElasticSearch(es_server_url,timeout=20) 
         self.hostname = os.uname()[1]
         self.hostip = socket.gethostbyname_ex(self.hostname)[2][0]
         self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
         self.settings = {     "index.routing.allocation.require._ip" : self.hostip }
-        
-        self.run = runstring
+        self.indexCreated=False
+        #self.run = runstring
+        self.indexFailures=0
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo
         aliasName = runstring + "_" + indexSuffix
         self.indexName = aliasName + "_" + self.hostname 
-        alias_command ={'actions': [{"add":
+        self.alias_command ={'actions': [{"add":
                                         {"index":self.indexName,
                                          "alias":aliasName
                                          }
                                     }]
                        }
-        try:
-            self.es.create_index(self.indexName)
-            self.es.update_aliases(alias_command)
-            self.es.update_settings(self.indexName,self.settings)
-
-
-        except ElasticHttpError as ex:
-            self.logger.exception(ex)
-#            print "Index already existing - records will be overridden"
-            #this is normally fine as the index gets created somewhere across the cluster
-            pass
-
+ 
     def imbue_jsn(self,infile):
         with open(infile.filepath,'r') as fp:
             try:
@@ -111,8 +103,8 @@ class elasticBand():
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
-        self.es.index(self.indexName,'prc-s-state',datadict)
-
+        self.tryIndex('prc-s-state',datadict)
+ 
     def elasticize_prc_out(self,infile):
         document,ret = self.imbue_jsn(infile)
         if ret<0:return
@@ -146,14 +138,12 @@ class elasticBand():
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
-
         
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
         self.fuoutBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'fu-out',document)
-        #return int(ls[2:])
 
     def elasticize_prc_in(self,infile):
         document,ret = self.imbue_jsn(infile)
@@ -171,8 +161,6 @@ class elasticBand():
         document['process']=int(prc[3:])
         self.prcinBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'prc-in',document)
-        #os.remove(path+'/'+file)
-        #return int(ls[2:])
 
     def elasticize_hltrates(self,infile,writeLegend):
         document,ret = self.imbue_jsn(infile)
@@ -182,26 +170,27 @@ class elasticBand():
             for item in infile.definitions:
                 if item['name']!='Processed': legend.append(item['name'])
             datadict={'path-names':legend}
-            self.es.index(self.indexName,'hltrates-legend',datadict)
-            
+            self.tryIndex('hltrates-legend',datadict)
+ 
         datadict={}
         datadict['ls'] = int(infile.ls[2:])
         datadict['pid'] = int(infile.pid[3:])
         datadict['path-accepted']=document['data'][1:]
         datadict['processed']=document['data'][0]
-        self.es.index(self.indexName,'hltrates',datadict)
+        self.tryIndex('hltrates',datadict)
         return True
+ 
  
     def elasticize_fu_complete(self,timestamp):
         document = {}
         document['host']=os.uname()[1]
         document['fm_date']=timestamp
-        self.es.index(self.indexName,'fu-complete',document)
-
+        self.tryIndex('fu-complete',document)
+ 
     def flushMonBuffer(self):
         if self.istateBuffer:
             self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
-            self.es.bulk_index(self.indexName,'prc-i-state',self.istateBuffer)
+            self.tryBulkIndex('prc-i-state',self.istateBuffer)
             self.istateBuffer = []
 
     def flushLS(self,ls):
@@ -209,10 +198,10 @@ class elasticBand():
         prcinDocs = self.prcinBuffer.pop(ls) if ls in self.prcinBuffer else None
         prcoutDocs = self.prcoutBuffer.pop(ls) if ls in self.prcoutBuffer else None
         fuoutDocs = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
-        if prcinDocs: self.es.bulk_index(self.indexName,'prc-in',prcinDocs)        
-        if prcoutDocs: self.es.bulk_index(self.indexName,'prc-out',prcoutDocs)
-        if fuoutDocs: self.es.bulk_index(self.indexName,'fu-out',fuoutDocs)
-
+        if prcinDocs: self.tryBulkIndex('prc-in',prcinDocs)
+        if prcoutDocs: self.tryBulkIndex('prc-out',prcoutDocs)
+        if fuoutDocs: self.tryBulkIndex('fu-out',fuoutDocs)
+ 
     def flushAll(self):
         self.flushMonBuffer()
         lslist = list(  set(self.prcinBuffer.keys()) | 
@@ -221,5 +210,37 @@ class elasticBand():
         for ls in lslist:
             self.flushLS(ls)
 
-        
+    def updateIndexSettingsMaybe(self):
+        if self.indexCreated==False:
+            self.es.update_aliases(self.alias_command)
+            self.es.update_settings(self.indexName,self.settings)
+            self.indexCreated=True
+
+    def tryIndex(self,docname,document): 
+        try:
+            self.es.index(self.indexName,docname,document)
+            self.updateIndexSettingsMaybe()
+        except (ConnectionError,Timeout) as ex:
+            self.indexFailures+=1
+            if self.indexFailures<3:
+                self.logger.exception(ex)
+            time.sleep(2)
+        except ElasticHttpError as ex:
+            self.indexFailures+=1
+            if self.indexFailures<3:
+                self.logger.exception(ex)
+
+    def tryBulkIndex(self,docname,documents):
+        try:
+            self.es.bulk_index(self.indexName,docname,documents)
+            self.updateIndexSettingsMaybe()
+        except (ConnectionError,Timeout) as ex:
+            self.indexFailures+=1
+            if self.indexFailures<3:
+                self.logger.exception(ex)
+            time.sleep(2)
+        except ElasticHttpError as ex:
+            self.indexFailures+=1
+            if self.indexFailures<3:
+                self.logger.exception(ex)
 
