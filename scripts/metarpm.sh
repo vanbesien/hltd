@@ -158,7 +158,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: fffmeta
-Version: 1.5.0
+Version: 1.5.1
 Release: 1
 Summary: hlt daemon
 License: gpl
