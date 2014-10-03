@@ -14,4 +14,4 @@ pwd >> $logname 2>&1
 eval `scram runtime -sh`;
 cd $3;
 pwd >> $logname 2>&1
-exec cmsRun `readlink $6` runInputDir=$5 runNumber=$4 >> $logname 2>&1
+exec esMonitoring.py cmsRun `readlink $6` runInputDir=$5 runNumber=$4 >> $logname 2>&1
