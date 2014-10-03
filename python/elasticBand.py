@@ -162,21 +162,38 @@ class elasticBand():
         self.prcinBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'prc-in',document)
 
-    def elasticize_hltrates(self,infile,writeLegend):
+
+    def elasticize_hltrateslegend(self,infile):
         document,ret = self.imbue_jsn(infile)
         if ret<0:return False
-        if writeLegend:
-            legend = []
-            for item in infile.definitions:
-                if item['name']!='Processed': legend.append(item['name'])
-            datadict={'path-names':legend}
-            self.tryIndex('hltrates-legend',datadict)
- 
         datadict={}
-        datadict['ls'] = int(infile.ls[2:])
-        datadict['pid'] = int(infile.pid[3:])
-        datadict['path-accepted']=document['data'][1:]
-        datadict['processed']=document['data'][0]
+        #datadict['pid'] = int(infile.pid[3:])
+        try:
+            datadict['path-names']=document['data'][0].strip('[]').split(',')
+            datadict['dataset-names']=document['data'][1].strip('[]').split(',')
+        except:
+            pass
+        self.tryIndex('hltrates-legend',datadict)
+        return True
+ 
+
+    def elasticize_hltrates(self,infile):
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return False
+        datadict={}
+        try:
+            datadict['ls'] = int(infile.ls[2:])
+            datadict['pid'] = int(infile.pid[3:])
+            datadict['processed']=json.loads(document['data'][0])
+            datadict['path-wasrun']=json.loads(document['data'][1])
+            datadict['path-afterl1seed']=json.loads(document['data'][2])
+            datadict['path-afterprescale']=json.loads(document['data'][3])
+            datadict['path-accepted']=json.loads(document['data'][4])
+            datadict['path-rejected']=json.loads(document['data'][5])
+            datadict['path-errors']=json.loads(document['data'][6])
+            datadict['dataset-accepted']=json.loads(document['data'][7])
+        except:
+            return False
         self.tryIndex('hltrates',datadict)
         return True
  

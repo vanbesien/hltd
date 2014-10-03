@@ -11,7 +11,7 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESJSD = range(24)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESLEGEND = range(24)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
@@ -117,11 +117,11 @@ class fileHandler(object):
                 elif "CRASH" in name and "_PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
-        if ext==".jsd" and name.startswith("HLTRATES"): return HLTRATESJSD
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
             if "STREAM" in name and "_PID" not in name: return OUTPUT
-            if name.startswith("HLTRATES"): return  HLTRATES
+            if name.startswith("HLTRATESLEGEND"): return  HLTRATESLEGEND
+            elif name.startswith("HLTRATES"): return  HLTRATES
         if ext==".pb":
             if "_PID" not in name: return PB
             else: return PIDPB
@@ -185,7 +185,7 @@ class fileHandler(object):
 
     def setJsdfile(self,jsdfile):
         self.jsdfile = jsdfile
-        if self.filetype in [OUTPUT,STREAMDQMHISTOUTPUT,CRASH,STREAMERR,HLTRATES]: self.initData()
+        if self.filetype in [OUTPUT,STREAMDQMHISTOUTPUT,CRASH,STREAMERR]: self.initData()
         
     def initData(self):
         defs = self.definitions
@@ -241,7 +241,7 @@ class fileHandler(object):
 
         #get definitions from jsd file
     def getDefinitions(self):
-        if self.filetype in [STREAM,HLTRATES]:
+        if self.filetype in [STREAM]:
             self.jsdfile = self.data["definition"]
         elif not self.jsdfile: 
             self.logger.warning("jsd file not set")
