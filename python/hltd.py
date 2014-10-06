@@ -1277,9 +1277,10 @@ class RunRanger:
                     # in case of a DQM machines create an EoR file
                     if conf.dqm_machine and conf.role == 'bu':
                         for run in run_list:
-                            if run.is_active_run:
+                            EoR_file_name = run.dirname + '/' + 'run' + str(run.runnumber).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn'
+                            if run.is_active_run and not os.path.exists(EoR_file_name):
                                 # create an EoR file that will trigger all the running jobs to exit nicely
-                                open(run.dirname + '/' + 'run' + str(run.runnumber).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn', 'w').close()
+                                open(EoR_file_name, 'w').close()
                                 
                     run_list.append(Run(nr,event.fullpath,bu_dir))
                     resource_lock.acquire()
