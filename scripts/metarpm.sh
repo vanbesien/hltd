@@ -4,9 +4,17 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPTDIR/..
 BASEDIR=$PWD
 
-if [ -f $SCRIPTDIR/paramcache ];
+PARAMCACHE="paramcache"
+
+if [ -n "$1" ]; then
+  PARAMCACHE=$1
+fi
+
+echo "Using cache file $PARAMCACHE"
+
+if [ -f $SCRIPTDIR/$PARAMCACHE ];
 then
-  readarray lines < $SCRIPTDIR/paramcache
+  readarray lines < $SCRIPTDIR/$PARAMCACHE
   for (( i=0; i < 12; i++ ))
   do
     lines[$i]=`echo -n ${lines[$i]} | tr -d "\n"`
@@ -118,16 +126,16 @@ do
 done
 
 #write cache
-if [ -f $SCRIPTDIR/paramcache ];
+if [ -f $SCRIPTDIR/$PARAMCACHE ];
 then
-rm -rf -f $SCRIPTDIR/paramcache
+rm -rf -f $SCRIPTDIR/$PARAMCACHE
 fi
 for (( i=0; i < 12; i++ ))
 do
-  echo ${lines[$i]} >> $SCRIPTDIR/paramcache
+  echo ${lines[$i]} >> $SCRIPTDIR/$PARAMCACHE
 done
 
-chmod 500 $SCRIPTDIR/paramcache
+chmod 500 $SCRIPTDIR/$PARAMCACHE
 # create a build area
 
 echo "removing old build area"
@@ -150,7 +158,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: fffmeta
-Version: 1.5.0
+Version: 1.5.1
 Release: 1
 Summary: hlt daemon
 License: gpl

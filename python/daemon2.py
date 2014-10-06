@@ -173,6 +173,8 @@ class Daemon2:
                   sys.stdout.write("\nterminating with -9...")
                   os.kill(pid,9)
                   sys.stdout.write("\nterminated after 5 seconds\n")
+                  #let system time to kill the process tree
+                  time.sleep(0.5)
                   self.emergencyUmount()
                   time.sleep(0.5)
                 os.kill(pid,0)

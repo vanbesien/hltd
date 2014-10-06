@@ -245,7 +245,7 @@ class elasticBandBU:
         if stream.startswith("stream"): stream = stream[6:]
         data.append(stream)
         values = [int(f) if str(f).isdigit() else str(f) for f in data]
-        keys = ["processed","accepted","errorEvents","fname","size","eolField1","eolField2","fm_date","ls","stream"]
+        keys = ["processed","accepted","errorEvents","fname","size","adler32","eolField1","eolField2","fm_date","ls","stream"]
         document = dict(zip(keys, values))
         document['id'] = infile.name
         document['_parent']= self.runnumber
@@ -403,8 +403,10 @@ class elasticBoxCollectorBU():
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
                     self.emptyQueue.set()
-                except (ValueError,IOError) as ex:
+                except ValueError as ex:
                     self.logger.exception(ex)
+                except IOError as ex:
+                    self.logger.warning("IOError on reading "+event.fullpath)
             else:
                 time.sleep(1.0)
         self.logger.info("Stop main loop")

@@ -156,8 +156,8 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.5.0
-Release: 2
+Version: 1.5.1
+Release: 1
 Summary: hlt daemon
 License: gpl
 Group: DAQ
