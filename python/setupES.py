@@ -31,6 +31,9 @@ def getURLwithIP(url):
 
   return prefix+str(ip)+suffix
 
+def delete_template(es,name):
+    es.send_request('DELETE', ['_template', name])
+
 def create_template(es,name):
     filepath = os.path.join("../json",name+"Template.json")
     try:
@@ -44,12 +47,17 @@ def create_template(es,name):
     es.send_request('PUT', ['_template', name], doc, query_params=None)
 
 def main():
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 3:
         print "Invalid argument number"
         sys.exit(1)
     if len(sys.argv) < 2:
         print "Please provide an elasticsearch server url (e.g. http://localhost:9200)"
         sys.exit(1)
+
+    deleteOld=False
+    if len(sys.argv)>2:
+        if "replace" in sys.argv[2]:
+            deleteOld=True
 
     es_server_url = sys.argv[1]
     ip_url=getURLwithIP(es_server_url)
@@ -67,9 +75,16 @@ def main():
             print "{0} template not present. It will be created. ".format(template_name)
             create_template(es,template_name)
         else:
-            print "{0} already exists. ".format(template_name)
+            if deleteOld==False:
+                print "{0} already exists. Add 'replace' parameter to force update.".format(template_name)
+            else:
+                print "{0} already exists.".format(template_name)
+                delete_template(es,template_name)
+                print "Deleted old template and will recreate {0}".format(template_name)
+                create_template(es,template_name)
 
 
 
 if __name__ == '__main__':
     main()
+

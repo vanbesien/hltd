@@ -169,8 +169,10 @@ class elasticBand():
         datadict={}
         #datadict['pid'] = int(infile.pid[3:])
         try:
-            datadict['path-names']=document['data'][0].strip('[]').split(',')
-            datadict['dataset-names']=document['data'][1].strip('[]').split(',')
+            paths=document['data'][0].strip('[]')
+            datasets=document['data'][1].strip('[]')
+            datadict['dataset-names']=datasets.split(',') if  len(datasets)>0 else []
+            datadict['path-names']=paths.split(',') if len(paths)>0 else []
         except:
             pass
         self.tryIndex('hltrates-legend',datadict)
@@ -184,7 +186,7 @@ class elasticBand():
         try:
             datadict['ls'] = int(infile.ls[2:])
             datadict['pid'] = int(infile.pid[3:])
-            datadict['processed']=json.loads(document['data'][0])
+            datadict['processed']=json.loads(document['data'][0])[0]
             datadict['path-wasrun']=json.loads(document['data'][1])
             datadict['path-afterl1seed']=json.loads(document['data'][2])
             datadict['path-afterprescale']=json.loads(document['data'][3])

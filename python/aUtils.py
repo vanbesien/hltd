@@ -120,8 +120,8 @@ class fileHandler(object):
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
             if "STREAM" in name and "_PID" not in name: return OUTPUT
-            if name.startswith("HLTRATESLEGEND"): return  HLTRATESLEGEND
-            elif name.startswith("HLTRATES"): return  HLTRATES
+            if "_HLTRATESLEGEND" in name: return  HLTRATESLEGEND
+            elif "_HLTRATES" in name: return  HLTRATES
         if ext==".pb":
             if "_PID" not in name: return PB
             else: return PIDPB
@@ -144,7 +144,7 @@ class fileHandler(object):
         elif filetype in [DAT,PB,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
-        elif filetype == HLTRATES:ftype,self.run,self.ls,self.pid = splitname
+        elif filetype == HLTRATES:self.run,self.ls,self.ftype,self.pid = splitname
         else: 
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3
