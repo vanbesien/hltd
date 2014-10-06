@@ -461,7 +461,7 @@ if __name__ == "__main__":
         #if cnhostname == 'bu-c2f13-31-01.cms' or cnhostname == 'fu-c2f13-39-01.cms' or cnhostname == 'fu-c2f13-39-02.cms' or cnhostname == 'fu-c2f13-39-03.cms' or cnhostname == 'fu-c2f13-39-04.cms':
         #    runindex_name = 'runindex_dqm'
     else:
-        runindex_name = 'runindex_test' 
+        runindex_name = 'test' 
 
     buName = ''
     budomain = ''
