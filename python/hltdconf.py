@@ -37,7 +37,8 @@ class hltdConf:
 
         self.dqm_machine = bool(self.dqm_machine=="True")
         if self.dqm_machine:
-            self.resource_base = self.dqm_resource_base
+            try:self.resource_base = self.dqm_resource_base
+            except:pass
 
         self.process_restart_delay_sec = float(self.process_restart_delay_sec)
         self.process_restart_limit = int(self.process_restart_limit)
