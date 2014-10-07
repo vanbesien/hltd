@@ -440,20 +440,26 @@ if __name__ == "__main__":
         runindex_name = 'cdaq'
         if myhost in minidaq_list:
             runindex_name = 'minidaq'
-        if myhost in dqm_list:
+        if myhost in dqm_list or myhost in ed_list:
             use_elasticsearch = 'False'
             runindex_name = 'dqm'
             cmsswloglevel = 'DISABLED'
             dqmmachine = 'True'
             username = 'dqmpro'
+            resourcefract = '1.0'
+            cmssw_version = ''
             if type == 'fu':
                 cmsswloglevel = 'ERROR'
-                cmssw_version = '' 
                 cmssw_base = '/home/dqmprolocal'
                 execdir = '/home/dqmprolocal/output' ##not yet
-                resourcefract = '1.0'
         if myhost in ed_list:
             runindex_name = 'ed'
+            username = 'dqmdev'
+            if type == 'fu':
+                cmsswloglevel = 'ERROR'
+                cmssw_base = '/home/dqmdevlocal'
+                execdir = '/home/dqmdevlocal/output' ##not yet 
+
         #hardcode minidaq hosts until role is available
         #if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
         #    runindex_name = 'runindex_minidaq'
