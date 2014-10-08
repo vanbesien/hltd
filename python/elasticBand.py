@@ -21,7 +21,7 @@ class elasticBand():
     def __init__(self,es_server_url,runstring,indexSuffix,monBufferSize,fastUpdateModulo):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.istateBuffer = []  
-        self.prcinBuffer = {}   # {"lsX": doclist}
+        self.prcinBuffer = {}
         self.prcoutBuffer = {}
         self.fuoutBuffer = {}
         self.es = ElasticSearch(es_server_url,timeout=20) 
@@ -30,18 +30,11 @@ class elasticBand():
         self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
         self.settings = {     "index.routing.allocation.require._ip" : self.hostip }
         self.indexCreated=False
-        #self.run = runstring
         self.indexFailures=0
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo
         aliasName = runstring + "_" + indexSuffix
         self.indexName = aliasName + "_" + self.hostname 
-        self.alias_command ={'actions': [{"add":
-                                        {"index":self.indexName,
-                                         "alias":aliasName
-                                         }
-                                    }]
-                       }
  
     def imbue_jsn(self,infile):
         with open(infile.filepath,'r') as fp:
@@ -209,7 +202,7 @@ class elasticBand():
     def flushMonBuffer(self):
         if self.istateBuffer:
             self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
-            self.tryBulkIndex('prc-i-state',self.istateBuffer)
+            self.tryBulkIndex('prc-i-state',self.istateBuffer,attempts=1)
             self.istateBuffer = []
 
     def flushLS(self,ls):
@@ -217,9 +210,9 @@ class elasticBand():
         prcinDocs = self.prcinBuffer.pop(ls) if ls in self.prcinBuffer else None
         prcoutDocs = self.prcoutBuffer.pop(ls) if ls in self.prcoutBuffer else None
         fuoutDocs = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
-        if prcinDocs: self.tryBulkIndex('prc-in',prcinDocs)
-        if prcoutDocs: self.tryBulkIndex('prc-out',prcoutDocs)
-        if fuoutDocs: self.tryBulkIndex('fu-out',fuoutDocs)
+        if prcinDocs: self.tryBulkIndex('prc-in',prcinDocs,attempts=2)
+        if prcoutDocs: self.tryBulkIndex('prc-out',prcoutDocs,attempts=2)
+        if fuoutDocs: self.tryBulkIndex('fu-out',fuoutDocs,attempts=5)
  
     def flushAll(self):
         self.flushMonBuffer()
@@ -231,7 +224,6 @@ class elasticBand():
 
     def updateIndexSettingsMaybe(self):
         if self.indexCreated==False:
-            self.es.update_aliases(self.alias_command)
             self.es.update_settings(self.indexName,self.settings)
             self.indexCreated=True
 
@@ -241,25 +233,28 @@ class elasticBand():
             self.updateIndexSettingsMaybe()
         except (ConnectionError,Timeout) as ex:
             self.indexFailures+=1
-            if self.indexFailures<3:
-                self.logger.exception(ex)
-            time.sleep(2)
+            if self.indexFailures<2:
+                self.logger.error("Elasticsearch connection error.")
+            time.sleep(5)
         except ElasticHttpError as ex:
             self.indexFailures+=1
-            if self.indexFailures<3:
+            if self.indexFailures<2:
                 self.logger.exception(ex)
 
-    def tryBulkIndex(self,docname,documents):
-        try:
-            self.es.bulk_index(self.indexName,docname,documents)
-            self.updateIndexSettingsMaybe()
-        except (ConnectionError,Timeout) as ex:
-            self.indexFailures+=1
-            if self.indexFailures<3:
-                self.logger.exception(ex)
-            time.sleep(2)
-        except ElasticHttpError as ex:
-            self.indexFailures+=1
-            if self.indexFailures<3:
-                self.logger.exception(ex)
+    def tryBulkIndex(self,docname,documents,attempts=1):
+        while attempts>0:
+            attempts-=1
+            try:
+                self.es.bulk_index(self.indexName,docname,documents)
+                self.updateIndexSettingsMaybe()
+                break
+            except (ConnectionError,Timeout) as ex:
+                self.indexFailures+=1
+                if self.indexFailures<2:
+                    self.logger.error("Elasticsearch connection error.")
+                time.sleep(5)
+            except ElasticHttpError as ex:
+                self.indexFailures+=1
+                if self.indexFailures<2:
+                    self.logger.exception(ex)
 

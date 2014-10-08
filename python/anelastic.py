@@ -687,6 +687,7 @@ class DQMMerger(threading.Thread):
        errorEvents = 0
 
        numFiles=0
+       inFileSizes=[]
        for f in outfile.inputs:
 #           try:
            fname = f.getFieldByName('Filelist')
@@ -697,7 +698,8 @@ class DQMMerger(threading.Thread):
                err = f.getFieldByName('ErrorEvents')
                #self.logger.info('merging file : ' + str(fname) + ' counts:'+str(proc) + ' ' + str(acc) + ' ' + str(err))
                if fname:
-                   os.stat(fullpath)
+                   pbfsize = os.stat(fullpath).st_size
+                   inFileSizes.append(pbfsize)
                    command_args.append(fullpath)
                    numFiles+=1
                    processedEvents+= proc
@@ -726,25 +728,32 @@ class DQMMerger(threading.Thread):
                p = subprocess.Popen(command_args,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                p.wait()
                if p.returncode!=0:
-                   self.logger.error('fastHadd returned with exit code '+str(p.returncode)+' and response: ' + str(p.communicate()) + '. Merging parameters given:'+str(command_args))
+                   self.logger.error('fastHadd returned with exit code '+str(p.returncode)+' and response: ' + str(p.communicate()) + '. Merging parameters given:'+str(command_args) +' ,file sizes(B):'+str(inFileSizes))
+                   #DQM more verbose debugging
+                   try:
+                       filesize = os.stat(fullOutputPath).st_size
+                   except:
+                       self.logger.error('fastHadd reported to fail at merging, while output pb file exists! '+ fullOutputPath + ' with size(B): '+filesize)
+
                    outfile.setFieldByName('ReturnCodeMask', str(p.returncode))
                    hasError=True
-           if numFiles==1 or p.returncode==0:
-               try:
-                   filesize = os.stat(fullOutputPath).st_size
-               except:
-                   self.logger.error('Error checking fastHadd output file size: '+ fullOutputPath)
-                   hasError=True
-               try:
-                   os.chmod(fullOutputPath,0666)
-               except:
-                   self.logger.error('Error fixing permissions of fastHadd output file: '+ fullOutputPath)
-           if numFiles>1:
-               for f in command_args[4:]:
+           if p.returncode==0:
+               if numFiles==1:
                    try:
-                       os.remove(f)
-                   except OSError as ex:
-                       self.logger.warning('exception removing file '+f+' : '+str(ex))
+                       filesize = os.stat(fullOutputPath).st_size
+                   except:
+                       self.logger.error('Error checking fastHadd output file size: '+ fullOutputPath)
+                       hasError=True
+                   try:
+                       os.chmod(fullOutputPath,0666)
+                   except:
+                       self.logger.error('Error fixing permissions of fastHadd output file: '+ fullOutputPath)
+               if numFiles>1:
+                   for f in command_args[4:]:
+                       try:
+                           if hasError==False:os.remove(f)
+                       except OSError as ex:
+                           self.logger.warning('exception removing file '+f+' : '+str(ex))
        else:
            hasError=True
 
