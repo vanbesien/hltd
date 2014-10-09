@@ -732,9 +732,9 @@ class DQMMerger(threading.Thread):
                    #DQM more verbose debugging
                    try:
                        filesize = os.stat(fullOutputPath).st_size
+                       self.logger.error('fastHadd reported to fail at merging, while output pb file exists! '+ fullOutputPath + ' with size(B): '+str(filesize))
                    except:
-                       self.logger.error('fastHadd reported to fail at merging, while output pb file exists! '+ fullOutputPath + ' with size(B): '+filesize)
-
+                       pass
                    outfile.setFieldByName('ReturnCodeMask', str(p.returncode))
                    hasError=True
            if p.returncode==0:
