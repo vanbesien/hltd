@@ -670,9 +670,9 @@ class CMSSWLogCollector(object):
                        file_dt = os.path.getmtime(file)
                        if (current_dt - file_dt).totalHours > maxAgeHours:
                            #delete file
-                           os.remove(file)
+                           os.remove(os.path.join(self.dir,file))
                    else:
-                       os.remove(file)
+                       os.remove(os.path.join(self.dir,file))
                except Exception,ex:
                    #maybe permissions were insufficient
                    self.logger.error("could not delete log file")

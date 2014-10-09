@@ -725,7 +725,7 @@ class DQMMerger(threading.Thread):
                #fastHadd crashes trying to merge only one file
                os.rename(command_args[4],command_args[3])
            else:
-               p = subprocess.Popen(command_args,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+               p = subprocess.Popen(command_args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                p.wait()
                if p.returncode!=0:
                    self.logger.error('fastHadd returned with exit code '+str(p.returncode)+' and response: ' + str(p.communicate()) + '. Merging parameters given:'+str(command_args) +' ,file sizes(B):'+str(inFileSizes))
@@ -737,7 +737,7 @@ class DQMMerger(threading.Thread):
                        pass
                    outfile.setFieldByName('ReturnCodeMask', str(p.returncode))
                    hasError=True
-           if p.returncode==0:
+           if True:
                if numFiles==1:
                    try:
                        filesize = os.stat(fullOutputPath).st_size
