@@ -19,6 +19,7 @@ class UmountResponseReceiver(threading.Thread):
         self.httpd=None
         self.watch_directory=watchdir
         self.cgi_port=cgiport
+        self.finished=False
  
     def run(self):
 
@@ -39,7 +40,12 @@ class UmountResponseReceiver(threading.Thread):
             self.httpd = BaseHTTPServer.HTTPServer(("", self.cgi_port+5), handler)
 
             self.httpd.serve_forever()
+            self.finished=True
         except KeyboardInterrupt:
+            self.finished=True
+            return
+        except:
+            self.finished=True
             return
 
     def stop(self):
@@ -120,11 +126,29 @@ def stopFUs():
         #handle interrupt
         print "Interrupted!"
         syslog.syslog("hltd: FU suspend was interrupted")
-        receiver.stop()
+        count=0
+        while receiver.finished==False:
+            count+=1
+            if count%100==0:syslog.syslog("hltd stop: trying to stop suspend receiver HTTP server thread (script interrupted)")
+            try:
+                receiver.stop()
+                time.sleep(.1)
+            except:
+                time.sleep(.5)
+                pass
         receiver.join()
         return False
 
-    receiver.stop()
+    count=0
+    while receiver.finished==False:
+        count+=1
+        if count%100==0:syslog.syslog("hltd stop: trying to stop suspend receiver HTTP server thread")
+        try:
+            receiver.stop()
+            time.sleep(.1)
+        except:
+            time.sleep(.5)
+            pass
     receiver.join()
 
     print "Finished FU suspend for:",str(machinelist)

@@ -108,12 +108,14 @@ class elasticBand():
         if stream.startswith("stream"): stream = stream[6:]
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
+        keys = ["in","out"]
+        #keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
-
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
+        try:document.pop('definition')
+	except:pass
         self.prcoutBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'prc-out',document)
         #return int(ls[2:])
@@ -128,13 +130,16 @@ class elasticBand():
         #removing 'stream' prefix
         if stream.startswith("stream"): stream = stream[6:]
 
-        values= [int(f) if f.isdigit() else str(f) for f in document['data']]
+        values = [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
-        
+        try:datadict.pop('Filelist')
+	except:pass
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
+        try:document.pop('definition')
+	except:pass
         self.fuoutBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'fu-out',document)
 
@@ -152,6 +157,8 @@ class elasticBand():
         document['index']=int(index[5:])
         document['dest']=os.uname()[1]
         document['process']=int(prc[3:])
+        try:document.pop('definition')
+	except:pass
         self.prcinBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'prc-in',document)
 
@@ -179,6 +186,10 @@ class elasticBand():
         try:
             datadict['ls'] = int(infile.ls[2:])
             datadict['pid'] = int(infile.pid[3:])
+	    try:
+	        if json.loads(document['data'][0])[0]==0:return True
+            except:
+		pass
             datadict['processed']=json.loads(document['data'][0])[0]
             datadict['path-wasrun']=json.loads(document['data'][1])
             datadict['path-afterl1seed']=json.loads(document['data'][2])
@@ -223,6 +234,7 @@ class elasticBand():
             self.flushLS(ls)
 
     def updateIndexSettingsMaybe(self):
+	return
         if self.indexCreated==False:
             self.es.update_settings(self.indexName,self.settings)
             self.indexCreated=True

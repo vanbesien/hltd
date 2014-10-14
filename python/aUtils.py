@@ -263,7 +263,7 @@ class fileHandler(object):
                 return False
         return True
 
-    def moveFile(self,newpath,copy = False,adler32=False):
+    def moveFile(self,newpath,copy = False,adler32=False,silent=False):
         checksum=1
         if not self.exists(): return True,checksum
         oldpath = self.filepath
@@ -291,7 +291,8 @@ class fileHandler(object):
               self.logger.exception(e)
               retries-=1
               if retries == 0:
-                  self.logger.error("Failure to move file "+str(oldpath)+" to "+str(newpath_tmp))
+                  if silent==False:
+                      self.logger.error("Failure to move file "+str(oldpath)+" to "+str(newpath_tmp))
                   return False,checksum
               else:
                   time.sleep(0.5)

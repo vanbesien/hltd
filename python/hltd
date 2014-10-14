@@ -43,22 +43,29 @@ if __name__ == "__main__":
                 daemon.delpid()
 
             #determine runlevel
-            p = Popen("runlevel", shell=True, stdout=PIPE)
-            p.wait()
-            std_out=p.stdout.read()
-            from_level,to_level = std_out.split('\t')[0].rstrip('\n').strip().split(' ')
-            if to_level.isdigit() and int(to_level) in [0,1,6] and str(from_level)!="1":
+            std_out=""
+            try:
+                p = Popen("runlevel", shell=True, stdout=PIPE)
+                p.wait()
+                std_out=p.stdout.read()
+                print "Runlevel:",std_out
+                from_level = std_out.split('\t')[0].rstrip('\n').strip().split(' ')[0]
+                to_level = std_out.split('\t')[0].rstrip('\n').strip().split(' ')[1]
+                if to_level.isdigit() and int(to_level) in [0,1,6] and str(from_level)!="1":
  
-                if stopFUs()==False:
-                    msg = "Shutdown or reboot is cancelled by hltd - FU umount failed! Switching to runlevel 3..."
-                    syslog.syslog(msg)
-                    time.sleep(2)
-                    p = Popen("init 3", shell=True, stdout=PIPE)
-                    p.wait()
+                    if stopFUs()==False:
+                        msg = "Shutdown or reboot is cancelled by hltd - FU umount failed! Switching to runlevel 3..."
+                        syslog.syslog(msg)
+                        time.sleep(2)
+                        p = Popen("init 3", shell=True, stdout=PIPE)
+                        p.wait()
+                    else:
+                        removeLockFile()
                 else:
-                    removeLockFile()
-            else:
-                print "Lock file remains. Run stop-appliance to unmount FUs."
+                    print "Lock file remains. Run stop-appliance to unmount FUs."
+            except:
+                syslog.syslog("Exception when determining runlevel:"+str(std_out))
+                
 
         elif 'stop-appliance' == sys.argv[1]:
             if daemon.status():
