@@ -141,7 +141,23 @@ central_runindex_mapping = {
                     'errorEvents'   :{'type':'integer'},
                     'size'          :{'type':'integer'},
                     }
+                },
+            'macromerge' : {
+                '_id'        :{'path':'id'},
+                '_parent'    :{'type':'run'},
+                'properties' : {
+                    'fm_date'       :{'type':'date'},
+                    'id'            :{'type':'string'}, #run+appliance+stream+ls
+                    'appliance'     :{'type':'string'},
+                    'stream'        :{'type':'string','index' : 'not_analyzed'},
+                    'ls'            :{'type':'integer'},
+                    'processed'     :{'type':'integer'},
+                    'accepted'      :{'type':'integer'},
+                    'errorEvents'   :{'type':'integer'},
+                    'size'          :{'type':'integer'},
+                    }
                 }
+
             }
 central_boxinfo_mapping = {
           'boxinfo' : {
