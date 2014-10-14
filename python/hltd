@@ -9,6 +9,7 @@ from hltd import hltd
 from subprocess import Popen
 from subprocess import PIPE
 from applianceumount import stopFUs
+from applianceumount import checkMode
 import time
 import syslog
 
@@ -48,7 +49,6 @@ if __name__ == "__main__":
                 p = Popen("runlevel", shell=True, stdout=PIPE)
                 p.wait()
                 std_out=p.stdout.read()
-                print "Runlevel:",std_out
                 from_level = std_out.split('\t')[0].rstrip('\n').strip().split(' ')[0]
                 to_level = std_out.split('\t')[0].rstrip('\n').strip().split(' ')[1]
                 if to_level.isdigit() and int(to_level) in [0,1,6] and str(from_level)!="1":
@@ -62,8 +62,12 @@ if __name__ == "__main__":
                     else:
                         removeLockFile()
                 else:
-                    print "Lock file remains. Run stop-appliance to unmount FUs."
+                    if checkMode()=="fu": 
+                        removeLockFile()
+                    else:
+                        print "Lock file remains. Run stop-appliance to unmount FUs."
             except:
+                print "Runlevel:",std_out
                 syslog.syslog("Exception when determining runlevel:"+str(std_out))
                 
 
@@ -73,8 +77,11 @@ if __name__ == "__main__":
             elif os.path.exists('/var/run/hltd.pid'):
                 daemon.delpid()
 
-            if stopFUs()==False:
-                print "FU umount failed, lock file remains. FU umount failed"
+            if checkMode()=="fu":
+                print "This command is not supported on FU."
+               
+            elif stopFUs()==False:
+                print "FU umount failed, lock file remains. FU umount failed."
             else:
                 removeLockFile()
 

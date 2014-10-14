@@ -51,6 +51,18 @@ class UmountResponseReceiver(threading.Thread):
     def stop(self):
             self.httpd.shutdown()
 
+def checkMode():
+    try:
+        hltdconf='/etc/hltd.conf'
+        with open(hltdconf,'r') as f:
+            for l in f.readlines():
+                ls=l.strip(' \n')
+                if not ls.startswith('#') and ls.startswith('role'):
+                    return ls.split('=')[1].strip(' ')
+    except:
+        pass
+    return "unknown"
+
 def stopFUs():
 
     hltdconf='/etc/hltd.conf'
@@ -60,7 +72,7 @@ def stopFUs():
     cgi_port=8000
 
     try:
-        f=open(hltdconf)
+        f=open(hltdconf,'r')
         for l in f.readlines():
             ls=l.strip(' \n')
             if not ls.startswith('#') and ls.startswith('watch_directory'):
