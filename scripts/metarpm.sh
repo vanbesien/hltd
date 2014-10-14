@@ -4,10 +4,16 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPTDIR/..
 BASEDIR=$PWD
 
+PACKAGENAME="fffmeta"
+
 PARAMCACHE="paramcache"
 
 if [ -n "$1" ]; then
   PARAMCACHE=$1
+fi
+
+if [ -n "$2" ]; then
+  PACKAGENAME=$2
 fi
 
 echo "Using cache file $PARAMCACHE"
@@ -157,7 +163,7 @@ pluginfile1="lukas-vlcek-bigdesk-v2.4.0-2-g9807b92-mod.zip"
 cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
-Name: fffmeta
+Name: $PACKAGENAME
 Version: 1.5.1
 Release: 3
 Summary: hlt daemon
