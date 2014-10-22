@@ -164,8 +164,8 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: $PACKAGENAME
-Version: 1.5.1
-Release: 3
+Version: 1.5.2
+Release: 1
 Summary: hlt daemon
 License: gpl
 Group: DAQ
