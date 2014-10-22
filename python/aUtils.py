@@ -5,13 +5,14 @@ import shutil
 import json
 import logging
 import zlib
+import subprocess
 
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESLEGEND = range(24)            #file types 
+UNKNOWN,OUTPUTJSD,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PJSNDATA,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESLEGEND = range(26)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
@@ -83,6 +84,7 @@ class fileHandler(object):
         self.outDir = self.dir
         self.mergeStage = 0
         self.inputs = []
+        self.inputData = []
 
     def getTime(self,t):
         if self.exists():
@@ -107,8 +109,10 @@ class fileHandler(object):
         if "mon" not in filepath:
             if ext == ".dat" and "_PID" not in name: return DAT
             if ext == ".dat" and "_PID" in name: return PDAT
+            if ext == ".jsndata" and "_PID" in name: return PJSNDATA
             if ext == ".ini" and "_PID" in name: return INI
-            if ext == ".jsd" and "OUTPUT" in name: return JSD
+            if ext == ".jsd" and "OUTPUT_" in name: return OUTPUTJSD
+            if ext == ".jsd" : return JSD
             if ext == ".jsn":
                 if STREAMERRORNAME.upper() in name: return STREAMERR
                 elif "BOLS" in name : return BOLS
@@ -138,7 +142,7 @@ class fileHandler(object):
         filetype = self.filetype
         name,ext = self.name,self.ext
         splitname = name.split("_")
-        if filetype in [STREAM,INI,PDAT,PIDPB,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        if filetype in [STREAM,INI,PDAT,PJSNDATA,PIDPB,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
         elif filetype == SLOW: self.run,self.ls,self.pid = splitname #this is wrong
         elif filetype == FAST: self.run,self.pid = splitname
         elif filetype in [DAT,PB,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT]: self.run,self.ls,self.stream,self.host = splitname
@@ -407,11 +411,60 @@ class fileHandler(object):
         if self.filetype==STREAMDQMHISTOUTPUT:
             self.inputs.append(infile)
         else:
+            #append list of files if this is json metadata stream
+            try:
+                findex,ftype = self.getFieldIndex("Filelist")
+                flist = newData[findex].split(',')
+                for l in flist:
+                  if l.endswith('.jsndata'):
+                    if (l.startswith('/')==False):
+                      self.inputData.append(os.path.join(self.dir,l))
+                    else:
+                      self.inputData.append(l)
+            except Exception as ex:
+              self.logger.exception(ex)
+              pass
             self.writeout()
 
     def updateData(self,infile):
         self.data["data"]=infile.data["data"][:]
 
+    def isJsonDataStream(self):
+        if len(self.inputData)>0:return True
+        return False
+
+    def mergeAndMoveJsnDataMaybe(self,outDir, removeInput=True):
+        if len(self.inputData):
+          try:
+            outfile = os.path.join(self.dir,self.name+'.jsndata')
+            command_args = ["jsonMerger",outfile]
+            for id in self.inputData:
+              command_args.append(id)
+            p = subprocess.Popen(command_args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            p.wait()
+            if p.returncode!=0:
+              self.logger.error('jsonMerger returned with exit code '+str(p.returncode)+' and response: ' + str(p.communicate()) + '. Merging parameters given:'+str(command_args))
+              return False
+          except Exception as ex:
+              self.logger.exception(ex)
+              return False
+          if removeInput:
+            for f in self.inputData:
+              try:
+                os.remove(f)
+              except:
+                pass
+            try:
+              self.setFieldByName("Filesize",str(os.stat(outfile).st_size))
+              self.setFieldByName("FileAdler32","-1")
+              self.writeout() 
+              jsndatFile = fileHandler(outfile)
+              jsndatFile.moveFile(os.path.join(outDir, os.path.basename(outfile)),adler32=False)
+            except Exception as ex:
+              self.logger.error("Unable to copy jsonStream data file "+str(outfile)+" to output.")
+              self.logger.exception(ex)
+              return False
+        return True 
 
 class Aggregator(object):
     def __init__(self,definitions,newData,oldData):

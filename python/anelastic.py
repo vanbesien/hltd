@@ -101,7 +101,9 @@ class LumiSectionRanger():
         eventtype = self.eventtype
 
         if eventtype:# & inotify.IN_CLOSE_WRITE:
-            if filetype == JSD and not self.jsdfile:
+            if filetype == JSD:
+                self.processJsdFile()
+            if filetype == OUTPUTJSD and not self.jsdfile:
                 self.jsdfile=self.infile.filepath
                 self.createEmptyOutputTemplate()
             elif filetype == COMPLETE:
@@ -130,7 +132,7 @@ class LumiSectionRanger():
             elif filetype == EOR:
                 self.processEORFile()
 #        elif eventtype & inotify.IN_MOVED_TO:
-#           if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
+#           if filetype == OUTPUTJSD and not self.jsdfile: self.jsdfile=self.infile.filepath
     
     def processCRASHfile(self):
         #send CRASHfile to every LSHandler
@@ -202,6 +204,18 @@ class LumiSectionRanger():
 
         self.createErrIniFile()
 
+    def processJsdFile(self):
+        run = 'run'+self.run_number.zfill(conf.run_number_padding)
+        if "_pid" in self.infile.name:
+          #name with pid: copy to local name without pid
+          newpath = os.path.join(self.infile.dir,self.infile.name[:self.infile.name.rfind('_pid')])+self.infile.ext
+          self.infile.moveFile(newpath,copy = True,adler32=False,silent=True)
+          #delete as we will use the one without pid
+          self.infile.deleteFile()
+        else:
+          #name with pid: copy to output
+          self.infile.moveFile(os.path.join(conf.micromerge_output,run,self.infile.basename),copy = True,adler32=False,silent=True)
+          
     def createEOLSFile(self,ls):
         eolname = os.path.join(self.tempdir,'run'+self.run_number.zfill(conf.run_number_padding)+"_"+ls+"_EoLS.jsn")
         try:
@@ -547,11 +561,11 @@ class LumiSectionHandler():
                 logger.info("bols file "+ str(bols_path) + " is created in the output")
 
 
-
-
                 #move all dat files in rundir
                 datfilelist = self.datfileList[:]
-                for datfile in datfilelist:
+                #no dat files in case of json data stream'
+                if outfile.isJsonDataStream()==False:
+                  for datfile in datfilelist:
                     if datfile.stream == stream:
                         newfilepath = os.path.join(self.outdir,datfile.run,datfile.basename)
                         (filestem,ext)=os.path.splitext(datfile.filepath)
@@ -578,10 +592,14 @@ class LumiSectionHandler():
 
                 #move output json file in rundir
                 newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
+
+                #do not copy data if this is jsn data stream and json merging fails
+                if outfile.mergeAndMoveJsnDataMaybe(os.path.join(self.outdir,outfile.run))==False:return
+
                 outfile.esCopy()
                 result,checksum=outfile.moveFile(newfilepath)
                 if result:
-                    self.outfileList.remove(outfile)
+                  self.outfileList.remove(outfile)
  
                 
         if not self.outfileList and not self.closed.isSet():
