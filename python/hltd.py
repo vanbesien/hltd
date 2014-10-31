@@ -483,6 +483,9 @@ class OnlineResource:
                             str(runnumber),
                             input_disk,
                             used+self.cpu[0]]
+            if self.watchdog:
+                new_run_args.append("skipFirstLumis=True")
+
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
 #            dem = demote.demote(conf.user)
