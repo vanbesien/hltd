@@ -1583,7 +1583,7 @@ class ResourceRanger:
                                 firstitem = reslist[0]
                                 reslist[0] = resourcename
                                 reslist[resindex] = firstitem
-                        break
+                            break
                         if fileFound==False:
                             #inotified file was already moved earlier
                             resource_lock.release()
