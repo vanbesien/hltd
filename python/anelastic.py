@@ -81,6 +81,10 @@ class LumiSectionRanger():
 
         if self.checkClosure()==False:
             self.logger.error('not all lumisections were closed on exit!')
+            try:
+                self.logger.error('open lumisections are: '+str(self.getOpenLumis()))
+            except:
+                pass
 
         self.complete.esCopy()
         #generate and move EoR completition file
@@ -244,6 +248,15 @@ class LumiSectionRanger():
             if not self.LSHandlerList[key].closed.isSet():
                 return False
         return True
+
+    def getOpenLumis(self):
+        openLumis=[]
+        for key in self.LSHandlerList.keys():
+            if not self.LSHandlerList[key].closed.isSet():
+                openLumis.append(key)
+        return openLumis
+
+
 
     def createOutputEoR(self):
 
