@@ -65,6 +65,7 @@ lines[3]=$readin
 fi
 
 echo "HWCFG DB SID (or db name in VM enviroment) (press enter for: \"${lines[4]}\"):"
+echo "(SPECIFIES address in TNSNAMES.ORA file if DB server field was left empty!)"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
@@ -164,7 +165,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: $PACKAGENAME
-Version: 1.5.2
+Version: 1.5.3
 Release: 1
 Summary: hlt daemon
 License: gpl

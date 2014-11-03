@@ -121,8 +121,18 @@ def getBUAddr(parentTag,hostname):
     if env == "vm":
         con = MySQLdb.connect( host= dbhost, user = dblogin, passwd = dbpwd, db = dbsid)
     else:
-        con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
-                        cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+        if parentTag == 'daq2':
+            if dbhost.strip()=='':
+                #con = cx_Oracle.connect('CMS_DAQ2_HW_CONF_W','pwd','cms_rcms',
+                con = cx_Oracle.connect(dblogin,dbpwd,dbsid,
+                          cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+            else:
+                con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
+                          cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+        else:
+            #hardcoded daq2val (until/if it switches to new DB)
+            if hostname.startswith('dvrubu-c2f34'):return ['dvbu-c2f34-30-01.dvfus1v0.cms']
+            if hostname.startswith('dvrubu-c2f33'):return ['dvbu-c2f34-28-01.dvfus1v0.cms']
     
     #print con.version
 
