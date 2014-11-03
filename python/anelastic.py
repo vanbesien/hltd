@@ -805,6 +805,7 @@ class DQMMerger(threading.Thread):
        outfile.setFieldByName('ErrorEvents',str(errorEvents))
        outfile.setFieldByName('Filelist',outputName)
        outfile.setFieldByName('Filesize',str(filesize))
+       outfile.esCopy()
        outfile.writeout()
  
 
