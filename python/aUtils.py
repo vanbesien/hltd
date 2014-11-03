@@ -18,6 +18,7 @@ TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
 STREAMERRORNAME = 'streamError'
 STREAMDQMHISTNAME = 'streamDQMHistograms'
+THISHOST = os.uname()[1]
 
 #Output redirection class
 class stdOutLog:
@@ -279,7 +280,8 @@ class fileHandler(object):
 
         self.logger.info("%s -> %s" %(oldpath,newpath))
         retries = 5
-        newpath_tmp = newpath+TEMPEXT
+        #temp name with temporary host name included to avoid conflict between multiple hosts copying at the same time
+        newpath_tmp = newpath+'_'+THISHOST+TEMPEXT
         while True:
           try:
               if not os.path.isdir(newdir): os.makedirs(newdir)
@@ -304,14 +306,14 @@ class fileHandler(object):
         while True:
         #renaming
             try:
-                #shutil.move(newpath,newpath.replace(TEMPEXT,""))
                 os.rename(newpath_tmp,newpath)
                 break
             except (OSError,IOError),e:
                 self.logger.exception(e)
                 retries-=1
                 if retries == 0:
-                    self.logger.error("Failure to rename the temporary file "+str(newpath_tmp)+" to "+str(newpath))
+                    if silent==False:
+                        self.logger.error("Failure to rename the temporary file "+str(newpath_tmp)+" to "+str(newpath))
                     return False,checksum
                 else:
                     time.sleep(0.5)
