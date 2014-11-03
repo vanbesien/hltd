@@ -302,6 +302,9 @@ class fileHandler(object):
                   return False,checksum
               else:
                   time.sleep(0.5)
+          except Exception, e:
+              self.logger.exception(e)
+              raise e
         retries = 5
         while True:
         #renaming
@@ -317,6 +320,9 @@ class fileHandler(object):
                     return False,checksum
                 else:
                     time.sleep(0.5)
+            except Exception, e:
+                self.logger.exception(e)
+                raise e
 
         self.filepath = newpath
         self.getFileInfo()
