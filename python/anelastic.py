@@ -75,7 +75,7 @@ class LumiSectionRanger():
                 time.sleep(0.5)
             #allow timeout in case 'complete' file is received and lumi is not closed
             if self.stoprequest.isSet() and self.emptyQueue.isSet() and self.checkClosure()==False:
-                if endTimeout<=-1: endTimeout=10
+                if endTimeout<=-1: endTimeout=100
                 if endTimeout==0: break
                 endTimeout-=1
 
