@@ -65,7 +65,7 @@ lines[3]=$readin
 fi
 
 echo "HWCFG DB SID (or db name in VM enviroment) (press enter for: \"${lines[4]}\"):"
-echo "(SPECIFIES address in TNSNAMES.ORA file if DB server field was left empty!)"
+echo "(SPECIFIES address in TNSNAMES.ORA file if DB server field was \"null\"!)"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then

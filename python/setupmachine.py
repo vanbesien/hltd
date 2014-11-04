@@ -122,7 +122,7 @@ def getBUAddr(parentTag,hostname):
         con = MySQLdb.connect( host= dbhost, user = dblogin, passwd = dbpwd, db = dbsid)
     else:
         if parentTag == 'daq2':
-            if dbhost.strip()=='':
+            if dbhost.strip()=='null':
                 #con = cx_Oracle.connect('CMS_DAQ2_HW_CONF_W','pwd','cms_rcms',
                 con = cx_Oracle.connect(dblogin,dbpwd,dbsid,
                           cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
