@@ -130,9 +130,11 @@ def getBUAddr(parentTag,hostname):
                 con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                           cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
         else:
+            con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@int2r2-v.cern.ch:10121/int2r_lb.cern.ch',
+                          cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
             #hardcoded daq2val (until/if it switches to new DB)
-            if hostname.startswith('dvrubu-c2f34'):return ['dvbu-c2f34-30-01.dvfus1v0.cms']
-            if hostname.startswith('dvrubu-c2f33'):return ['dvbu-c2f34-28-01.dvfus1v0.cms']
+            #if hostname.startswith('dvrubu-c2f34'):return ['dvbu-c2f34-30-01.dvfus1v0.cms']
+            #if hostname.startswith('dvrubu-c2f33'):return ['dvbu-c2f34-28-01.dvfus1v0.cms']
     
     #print con.version
 
