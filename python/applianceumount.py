@@ -87,12 +87,15 @@ def stopFUs():
         print "Unable to read parameters",str(ex),"using defaults"
 
     if machine_is_bu==False:return True
+    syslog.syslog("hltd:Initiating FU unmount procedure")
     #continue with notifying FUs
     boxinfodir=os.path.join(watch_directory,'appliance/boxes')
 
     maxTimeout=120 #sec
 
     myhost = os.uname()[1]
+
+    receiver = None
 
     machinelist=[]
     dirlist = os.listdir(boxinfodir)
@@ -103,7 +106,12 @@ def stopFUs():
         current_time = time.time()
         age = current_time - os.path.getmtime(os.path.join(boxinfodir,machine))
         print "found machine",machine," which is ",str(age)," seconds old"
+        syslog.syslog("hltd: found machine "+str(machine) + " which is "+ str(age)+" seconds old")
         if age < 30:
+            if receiver==None:
+                receiver = UmountResponseReceiver(watch_directory,cgi_port)
+                receiver.start()
+                time.sleep(1)
             try:
                 connection = httplib.HTTPConnection(machine, cgi_port,timeout=5)
                 connection.request("GET",'cgi-bin/suspend_cgi.py')
@@ -112,10 +120,6 @@ def stopFUs():
             except:
                 print "Unable to contact machine",machine
  
-
-    receiver = UmountResponseReceiver(watch_directory,cgi_port)
-    receiver.start()
-
     usedTimeout=0
     try:
         while usedTimeout<maxTimeout: 
@@ -129,6 +133,7 @@ def stopFUs():
                     machinePending=True
                     activeMachines.append(machine)
 
+            syslog.syslog("hltd: waiting for machines to respond:"+str(activeMachines))
             if machinePending:
                 usedTimeout+=2
                 time.sleep(2)
@@ -139,7 +144,8 @@ def stopFUs():
         print "Interrupted!"
         syslog.syslog("hltd: FU suspend was interrupted")
         count=0
-        while receiver.finished==False:
+        if receiver!=None:
+          while receiver.finished==False:
             count+=1
             if count%100==0:syslog.syslog("hltd stop: trying to stop suspend receiver HTTP server thread (script interrupted)")
             try:
@@ -148,11 +154,12 @@ def stopFUs():
             except:
                 time.sleep(.5)
                 pass
-        receiver.join()
+          receiver.join()
         return False
 
     count=0
-    while receiver.finished==False:
+    if receiver!=None:
+      while receiver.finished==False:
         count+=1
         if count%100==0:syslog.syslog("hltd stop: trying to stop suspend receiver HTTP server thread")
         try:
@@ -161,10 +168,11 @@ def stopFUs():
         except:
             time.sleep(.5)
             pass
-    receiver.join()
+      receiver.join()
 
     print "Finished FU suspend for:",str(machinelist)
     print "Not successful:",str(activeMachines)
+    syslog.syslog("hltd: unmount script completed. remaining machines :"+str(activeMachines))
     if usedTimeout==maxTimeout:
         print "FU suspend failed for hosts:",activeMachines
         syslog.syslog("hltd: FU suspend failed for hosts"+str(activeMachines))
