@@ -1004,7 +1004,10 @@ class Run:
         #herod mode sends sigkill to all process, however waits for all scripts to finish
         logging.debug("Run:Shutdown called")
         self.is_active_run = False
-        self.changeMarkerMaybe(Run.ABORTED)
+        try:
+            self.changeMarkerMaybe(Run.ABORTED)
+        except OSError as ex:
+            pass
 
         try:
             for resource in self.online_resource_list:
@@ -1038,7 +1041,10 @@ class Run:
                     resource.process=None
 
             self.online_resource_list = []
-            self.changeMarkerMaybe(Run.ABORTCOMPLETE)
+            try:
+                self.changeMarkerMaybe(Run.ABORTCOMPLETE)
+            except OSError as ex:
+                pass
             try:
                 if self.anelastic_monitor:
                     if herod:
