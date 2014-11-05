@@ -1593,10 +1593,10 @@ class ResourceRanger:
                                 reslist[0] = resourcename
                                 reslist[resindex] = firstitem
                             break
-                        if fileFound==False:
-                            #inotified file was already moved earlier
-                            resource_lock.release()
-                            return
+                    if fileFound==False:
+                        #inotified file was already moved earlier
+                        resource_lock.release()
+                        return
                     #acquire sufficient cores for a multithreaded process start
                     resourcenames = []
                     for resname in reslist:
@@ -1632,10 +1632,10 @@ class ResourceRanger:
                                         reslist[0] = resourcename
                                         reslist[resindex] = firstitem
                                     break
-                                if fileFound==False:
-                                    #inotified file was already moved earlier
-                                    resource_lock.release()
-                                    return
+                            if fileFound==False:
+                                #inotified file was already moved earlier
+                                resource_lock.release()
+                                return
                             resourcenames = []
                             for resname in reslist:
                                 if len(resourcenames) < nstreams:
