@@ -214,6 +214,12 @@ class LumiSectionRanger():
           #name with pid: copy to local name without pid
           newpath = os.path.join(self.infile.dir,self.infile.name[:self.infile.name.rfind('_pid')])+self.infile.ext
           oldpath = self.infile.filepath
+          try:
+            os.stat(newpath)
+            #skip further action if destination exists
+            return
+          except:
+            pass
           self.infile.moveFile(newpath,copy = True,adler32=False,silent=True)
           #delete as we will use the one without pid
           try:os.unlink(oldpath)
