@@ -64,7 +64,7 @@ class elasticCollector():
             if filetype in [FAST,SLOW]:
                 self.elasticize()
             elif self.esDirName in infile.dir:
-                if filetype in [INDEX,STREAM,OUTPUT,STREAMDQMHISTOUTPUT]:self.elasticize()
+                if filetype in [INDEX,STREAM,OUTPUT]:self.elasticize()
                 elif filetype in [EOLS]:self.elasticizeLS()
                 elif filetype in [COMPLETE]:
                     self.elasticize()
@@ -72,7 +72,7 @@ class elasticCollector():
             elif filetype in [MODULELEGEND] and self.movedModuleLegend == False:
                 try:
                     if not os.path.exists(self.inputMonDir+'/microstatelegend.leg'):
-                        self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg',silent=True)
+                        self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg')
                 except Exception,ex:
                     logger.error(ex)
                     pass
@@ -80,7 +80,7 @@ class elasticCollector():
             elif filetype in [PATHLEGEND] and self.movedPathLegend == False:
                 try:
                     if not os.path.exists(self.inputMonDir+'/pathlegend.leg'):
-                        self.infile.moveFile(self.inputMonDir+'/pathlegend.leg',silent=True)
+                        self.infile.moveFile(self.inputMonDir+'/pathlegend.leg')
                 except Exception,ex:
                     logger.error(ex)
                     pass
@@ -115,7 +115,7 @@ class elasticCollector():
                 self.logger.info(name+" going into prc-out")
                 es.elasticize_prc_out(infile)
                 self.infile.deleteFile()
-            elif filetype in [OUTPUT,STREAMDQMHISTOUTPUT]:
+            elif filetype == OUTPUT:
                 self.logger.info(name+" going into fu-out")
                 es.elasticize_fu_out(infile)
                 self.infile.deleteFile()

@@ -626,13 +626,10 @@ class CMSSWLogCollector(object):
                 #clean old log files if size is excessive
                 if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize: #4GB ; 33554432 = 32G in kbytes
                     self.deleteOldLogs(168)#delete files older than 1 week
-                    #if not sufficient, delete more recent files
-                    if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize:
-                        self.deleteOldLogs(84)#
-                        #if not sufficient, delete everything
-                        if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize:
-                            self.deleteOldLogs(0)#
 
+                    #if not sufficient, delete all old log files 
+                    if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>maxlogsize:
+                        self.deleteOldLogs(0)#
             self.indices[rn].addParser(event.fullpath,pid)
 
         #cleanup

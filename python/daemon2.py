@@ -107,7 +107,7 @@ class Daemon2:
         except IOError:
             pid = None
         if not pid:
-            message = self.processname+" not running, no pidfile %s\n"
+            message = self.processname+" not running no pidfile %s\n"
         else:
             try:
                 os.kill(pid,0)
@@ -132,7 +132,7 @@ class Daemon2:
         except IOError:
             pid = None
         if not pid:
-            message = self.processname+" not running, no pidfile %s\n"
+            message = self.processname+" not running no pidfile %s\n"
         else:
             try:
                 os.kill(pid,0)
