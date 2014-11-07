@@ -261,12 +261,14 @@ class elasticBand():
                 self.updateIndexSettingsMaybe()
                 break
             except (ConnectionError,Timeout) as ex:
-                self.indexFailures+=1
-                if self.indexFailures<2:
-                    self.logger.error("Elasticsearch connection error.")
+                if attempts==0:
+                    self.indexFailures+=1
+                    if self.indexFailures<2:
+                        self.logger.error("Elasticsearch connection error.")
                 time.sleep(5)
             except ElasticHttpError as ex:
-                self.indexFailures+=1
-                if self.indexFailures<2:
-                    self.logger.exception(ex)
+                if attempts==0:
+                    self.indexFailures+=1
+                    if self.indexFailures<2:
+                        self.logger.exception(ex)
 

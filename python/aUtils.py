@@ -268,7 +268,7 @@ class fileHandler(object):
                 return False
         return True
 
-    def moveFile(self,newpath,copy = False,adler32=False,silent=False):
+    def moveFile(self,newpath,copy = False,adler32=False,silent=False, createDestinationDir=True):
         checksum=1
         if not self.exists(): return True,checksum
         oldpath = self.filepath
@@ -284,7 +284,11 @@ class fileHandler(object):
         newpath_tmp = newpath+'_'+THISHOST+TEMPEXT
         while True:
           try:
-              if not os.path.isdir(newdir): os.makedirs(newdir)
+              if not os.path.isdir(newdir):
+                  if createDestinationDir==False:
+                      if silent==False: self.logger.error("Unable to transport file "+str(oldpath)+". Destination directory does not exist: " + str(newdir))
+                      return False,checksum
+                  os.makedirs(newdir)
 
               if adler32:checksum=self.moveFileAdler32(oldpath,newpath_tmp,copy)
               else:
