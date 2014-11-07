@@ -71,7 +71,7 @@ class elasticCollector():
                     self.stop()
             elif filetype in [MODULELEGEND] and self.movedModuleLegend == False:
                 try:
-                    if not os.path.exists(self.inputMonDir+'/microstatelegend.leg'):
+                    if not os.path.exists(self.inputMonDir+'/microstatelegend.leg') and os.path.exists(self.inputMonDir):
                         self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg',silent=True)
                 except Exception,ex:
                     logger.error(ex)
@@ -79,7 +79,7 @@ class elasticCollector():
                 self.movedModuleLegend = True
             elif filetype in [PATHLEGEND] and self.movedPathLegend == False:
                 try:
-                    if not os.path.exists(self.inputMonDir+'/pathlegend.leg'):
+                    if not os.path.exists(self.inputMonDir+'/pathlegend.leg') and os.path.exists(self.inputMonDir):
                         self.infile.moveFile(self.inputMonDir+'/pathlegend.leg',silent=True)
                 except Exception,ex:
                     logger.error(ex)
