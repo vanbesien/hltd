@@ -69,7 +69,7 @@ def stopFUs():
     watch_directory='/fff/ramdisk'
     machine_is_bu=False
     machine_is_fu=False
-    cgi_port=8000
+    cgi_port=9000
 
     try:
         f=open(hltdconf,'r')
