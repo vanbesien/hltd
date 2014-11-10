@@ -399,9 +399,9 @@ class fileHandler(object):
                         shutil.copy(self.filepath,newpath)
                         break
                     except (OSError,IOError),e:
-                        self.logger.exception(e)
                         retries-=1
                         if retries == 0:
+                            self.logger.exception(e)
                             raise e
                         else:
                             time.sleep(0.5)
