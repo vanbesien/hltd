@@ -27,7 +27,7 @@ class elasticBand():
         self.es = ElasticSearch(es_server_url,timeout=20) 
         self.hostname = os.uname()[1]
         self.hostip = socket.gethostbyname_ex(self.hostname)[2][0]
-        self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
+        #self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
         self.settings = {     "index.routing.allocation.require._ip" : self.hostip }
         self.indexCreated=False
         self.indexFailures=0
@@ -246,7 +246,7 @@ class elasticBand():
         except (ConnectionError,Timeout) as ex:
             self.indexFailures+=1
             if self.indexFailures<2:
-                self.logger.error("Elasticsearch connection error.")
+                self.logger.warning("Elasticsearch connection error.")
             time.sleep(5)
         except ElasticHttpError as ex:
             self.indexFailures+=1
@@ -264,7 +264,7 @@ class elasticBand():
                 if attempts==0:
                     self.indexFailures+=1
                     if self.indexFailures<2:
-                        self.logger.error("Elasticsearch connection error.")
+                        self.logger.warning("Elasticsearch connection error.")
                 time.sleep(5)
             except ElasticHttpError as ex:
                 if attempts==0:

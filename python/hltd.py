@@ -425,23 +425,29 @@ class OnlineResource:
     def NotifyNewRun(self,runnumber):
         self.runnumber = runnumber
         logging.info("calling start of run on "+self.cpu[0]);
-        connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
-        connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
-        response = connection.getresponse()
-        #do something intelligent with the response code
-        logging.error("response was "+str(response.status))
-        if response.status > 300: self.hoststate = 1
-        else:
-            logging.info(response.read())
+        try:
+            connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
+            connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
+            response = connection.getresponse()
+            #do something intelligent with the response code
+            logging.error("response was "+str(response.status))
+            if response.status > 300: self.hoststate = 1
+            else:
+                logging.info(response.read())
+        except Exception as ex:
+            logging.exception(ex)
 
     def NotifyShutdown(self):
-        connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
-        connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
-        time.sleep(0.05)
-        response = connection.getresponse()
-        time.sleep(0.05)
-        #do something intelligent with the response code
-        if response.status > 300: self.hoststate = 0
+        try:
+            connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
+            connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
+            time.sleep(0.05)
+            response = connection.getresponse()
+            time.sleep(0.05)
+            #do something intelligent with the response code
+            if response.status > 300: self.hoststate = 0
+        except Exception as ex:
+            logging.exception(ex)
 
     def StartNewProcess(self ,runnumber, startindex, arch, version, menu,num_threads,num_streams):
         logging.debug("OnlineResource: StartNewProcess called")
