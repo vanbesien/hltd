@@ -106,8 +106,8 @@ class elasticBand():
         stream=infile.stream
         #removing 'stream' prefix
         if stream.startswith("stream"): stream = stream[6:]
-
-        values = [int(f) if f.isdigit() else str(f) for f in document['data']]
+        values = [int(f) if ((type(f) is str and f.isdigit()) or type(f) is int) else str(f) for f in document['data']]
+        #values = [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out"]
         #keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","fileAdler32"]
         datadict = dict(zip(keys, values))
