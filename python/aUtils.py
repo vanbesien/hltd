@@ -298,7 +298,8 @@ class fileHandler(object):
               break
 
           except (OSError,IOError),e:
-              self.logger.exception(e)
+              if silent==False:
+                  self.logger.exception(e)
               retries-=1
               if retries == 0:
                   if silent==False:
@@ -316,7 +317,8 @@ class fileHandler(object):
                 os.rename(newpath_tmp,newpath)
                 break
             except (OSError,IOError),e:
-                self.logger.exception(e)
+                if silent==False:
+                    self.logger.exception(e)
                 retries-=1
                 if retries == 0:
                     if silent==False:
@@ -402,7 +404,7 @@ class fileHandler(object):
                         retries-=1
                         if retries == 0:
                             self.logger.exception(e)
-                            raise e
+                            #raise e #non-critical exception
                         else:
                             time.sleep(0.5)
 
