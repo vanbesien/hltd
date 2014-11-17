@@ -607,16 +607,16 @@ class RunCompletedChecker(threading.Thread):
 
             if check_es_complete:
                 try:
-                    resp = requests.post(self.url, '')
+                    resp = requests.post(self.url, '',timeout=5)
                     data = json.loads(resp.content)
                     if int(data['count']) >= len(self.nresources):
                         try:
-                            respq = requests.post(self.urlsearch,self.url_query)
+                            respq = requests.post(self.urlsearch,self.url_query,timeout=5)
                             dataq = json.loads(respq.content)
                             fm_time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
                             #fill in central index completition time
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
-                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',postq)
+                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',postq,timeout=5)
                             self.logger.info("filled in completition time for run"+str(self.nr))
                         except IndexError:
                             # 0 FU resources present in this run, skip writing completition time
@@ -627,7 +627,7 @@ class RunCompletedChecker(threading.Thread):
                             if conf.close_es_index==True:
                                 #wait a bit for central ES queries to complete
                                 time.sleep(10)
-                                resp = requests.post(self.urlclose)
+                                resp = requests.post(self.urlclose,timeout=5)
                                 self.logger.info('closed appliance ES index for run '+str(self.nr))
                         except Exception as exc:
                             self.logger.error('Error in run completition check')
