@@ -177,6 +177,21 @@ class elasticBandBU:
         basename = infile.basename
         self.logger.debug(basename)
         current_time = time.time()
+        black_list=[]
+
+        #check box file against blacklist
+        try:
+           with open(os.path.join(conf.watch_directory,'appliance','blacklist'),"r") as fi:
+               try:
+                   black_list = json.load(fi)
+               except ValueError:
+                   #file is being written or corrupted
+                   return
+        except:
+            #blacklist is not present, do not filter
+            pass
+        if basename in black_list:return
+
         if basename.startswith('fu'):
             try:
                 self.boxinfoFUMap[basename] = [infile.data,current_time]
@@ -198,21 +213,26 @@ class elasticBandBU:
                 document['used']=0
                 document['broken']=0
                 document['quarantined']=0
+                document['cloud']=0
                 document['usedDataDir']=0
                 document['totalDataDir']=0
                 document['hosts']=[basename]
+                document['blacklistedHosts']=[]
                 for key in self.boxinfoFUMap:
-                        dpair = self.boxinfoFUMap[key]
-                        d = dpair[0]
-                        #check if entry is not older than 10 seconds
-                        if current_time - dpair[1] > 10:continue
-                        document['idles']+=int(d['idles'])
-                        document['used']+=int(d['used'])
-                        document['broken']+=int(d['broken'])
-                        document['quarantined']+=int(d['quarantined'])
-                        document['usedDataDir']+=int(d['usedDataDir'])
-                        document['totalDataDir']+=int(d['totalDataDir'])
-                        document['hosts'].append(key)
+                    dpair = self.boxinfoFUMap[key]
+                    d = dpair[0]
+                    #check if entry is not older than 10 seconds
+                    if current_time - dpair[1] > 10:continue
+                    document['idles']+=int(d['idles'])
+                    document['used']+=int(d['used'])
+                    document['broken']+=int(d['broken'])
+                    document['quarantined']+=int(d['quarantined'])
+                    document['cloud']+=int(d['cloud'])
+                    document['usedDataDir']+=int(d['usedDataDir'])
+                    document['totalDataDir']+=int(d['totalDataDir'])
+                    document['hosts'].append(key)
+                for blacklistedHost in black_list:
+                    document['blacklistedHosts'].append(blacklistedHost)
                 self.index_documents('boxinfo_appliance',[document],bulk=False)
             except Exception as ex:
                 #in case of malformed box info
@@ -587,16 +607,16 @@ class RunCompletedChecker(threading.Thread):
 
             if check_es_complete:
                 try:
-                    resp = requests.post(self.url, '')
+                    resp = requests.post(self.url, '',timeout=5)
                     data = json.loads(resp.content)
                     if int(data['count']) >= len(self.nresources):
                         try:
-                            respq = requests.post(self.urlsearch,self.url_query)
+                            respq = requests.post(self.urlsearch,self.url_query,tmieout=5)
                             dataq = json.loads(respq.content)
                             fm_time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
                             #fill in central index completition time
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
-                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',postq)
+                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',postq,timeout=5)
                             self.logger.info("filled in completition time for run"+str(self.nr))
                         except IndexError:
                             # 0 FU resources present in this run, skip writing completition time
@@ -607,7 +627,7 @@ class RunCompletedChecker(threading.Thread):
                             if conf.close_es_index==True:
                                 #wait a bit for central ES queries to complete
                                 time.sleep(10)
-                                resp = requests.post(self.urlclose)
+                                resp = requests.post(self.urlclose,timeout=5)
                                 self.logger.info('closed appliance ES index for run '+str(self.nr))
                         except Exception as exc:
                             self.logger.error('Error in run completition check')

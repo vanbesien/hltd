@@ -16,11 +16,11 @@ else: role = conf.role
 if role=='fu' and conf.dqm_machine=="False":
 
     try:
-        shutil.rmtree('/etc/appliance/online/*')
+        shutil.rmtree('/etc/appliance/idle/*')
     except:
         pass
     try:
-        shutil.rmtree('/etc/appliance/offline/*')
+        shutil.rmtree('/etc/appliance/online/*')
     except:
         pass
     try:
@@ -31,8 +31,11 @@ if role=='fu' and conf.dqm_machine=="False":
         shutil.rmtree('/etc/appliance/quarantined/*')
     except:
         pass
-
-
+    try:
+        shutil.rmtree('/etc/appliance/cloud/*')
+    except:
+        pass
+ 
     fp=open('/proc/cpuinfo','r')
     resource_count = 0
     for line in fp:

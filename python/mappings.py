@@ -139,7 +139,7 @@ central_runindex_mapping = {
                     'processed'     :{'type':'integer'},
                     'accepted'      :{'type':'integer'},
                     'errorEvents'   :{'type':'integer'},
-                    'size'          :{'type':'integer'},
+                    'size'          :{'type':'long'},
                     }
                 },
             'macromerge' : {
@@ -154,7 +154,7 @@ central_runindex_mapping = {
                     'processed'     :{'type':'integer'},
                     'accepted'      :{'type':'integer'},
                     'errorEvents'   :{'type':'integer'},
-                    'size'          :{'type':'integer'},
+                    'size'          :{'type':'long'},
                     }
                 }
 
@@ -169,13 +169,14 @@ central_boxinfo_mapping = {
               'used'          :{'type':'integer'},
               'idles'         :{'type':'integer'},
               'quarantined'   :{'type':'integer'},
+              'cloud'         :{'type':'integer'},
               'usedDataDir'   :{'type':'integer'},
               'totalDataDir'  :{'type':'integer'},
               'usedRamdisk'   :{'type':'integer'},
               'totalRamdisk'  :{'type':'integer'},
               'usedOutput'    :{'type':'integer'},
               'totalOutput'   :{'type':'integer'},
-              'activeRuns'    :{'type':'string'}
+              'activeRuns'    :{'type':'string'},
               },
             '_timestamp' : { 
               'enabled'   : True,
@@ -193,6 +194,7 @@ central_boxinfo_mapping = {
               'used'          :{'type':'integer'},
               'idles'         :{'type':'integer'},
               'quarantined'   :{'type':'integer'},
+              'cloud'         :{'type':'integer'},
               'usedDataDir'   :{'type':'integer'},
               'totalDataDir'  :{'type':'integer'},
               'usedRamdisk'   :{'type':'integer'},
@@ -200,7 +202,8 @@ central_boxinfo_mapping = {
               'usedOutput'    :{'type':'integer'},
               'totalOutput'   :{'type':'integer'},
               'activeRuns'    :{'type':'string'},
-              'hosts'         :{'type':'string',"index":"not_analyzed"}
+              'hosts'         :{'type':'string',"index":"not_analyzed"},
+              'blacklistedHosts':{'type':'string',"index":"not_analyzed"}
               },
             '_timestamp' : { 
               'enabled'   : True,
@@ -217,13 +220,14 @@ central_boxinfo_mapping = {
               'used'          :{'type':'integer'},
               'idles'         :{'type':'integer'},
               'quarantined'   :{'type':'integer'},
+              'cloud'         :{'type':'integer'},
               'usedDataDir'   :{'type':'integer'},
               'totalDataDir'  :{'type':'integer'},
               'usedRamdisk'   :{'type':'integer'},
               'totalRamdisk'  :{'type':'integer'},
               'usedOutput'    :{'type':'integer'},
               'totalOutput'   :{'type':'integer'},
-              'activeRuns'    :{'type':'string'}
+              'activeRuns'    :{'type':'string'},
               },
             '_timestamp' : { 
               'enabled'   : True,

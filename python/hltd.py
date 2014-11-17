@@ -34,10 +34,13 @@ import _inotify as inotify
 from elasticbu import BoxInfoUpdater
 from elasticbu import RunCompletedChecker
 
+from aUtils import fileHandler
+
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
 broken = conf.resource_base+'/except/'
 quarantined = conf.resource_base+'/quarantined/'
+cloud = conf.resource_base+'/cloud/'
 nthreads = None
 nstreams = None
 expected_processes = None
@@ -47,6 +50,11 @@ bu_disk_list_output=[]
 active_runs=[]
 resource_lock = threading.Lock()
 suspended=False
+entering_cloud_mode=False
+cloud_mode=False
+
+machine_blacklist=[]
+boxinfoFUMap = {}
 
 logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
@@ -62,21 +70,45 @@ def preexec_function():
     #    os.setpgrp()
 
 def cleanup_resources():
+    try:
+        dirlist = os.listdir(clouds)
+        for cpu in dirlist:
+            os.rename(clouds+cpu,idles+cpu)
+        dirlist = os.listdir(broken)
+        for cpu in dirlist:
+            os.rename(broken+cpu,idles+cpu)
+        dirlist = os.listdir(used)
+        for cpu in dirlist:
+            os.rename(used+cpu,idles+cpu)
+        dirlist = os.listdir(quarantined)
+        for cpu in dirlist:
+            os.rename(quarantined+cpu,idles+cpu)
+        dirlist = os.listdir(idles)
+        #quarantine files beyond use fraction limit (rounded to closest integer)
+        num_excluded = round(len(dirlist)*(1.-conf.resource_use_fraction))
+        for i in range(0,int(num_excluded)):
+            os.rename(idles+dirlist[i],quarantined+dirlist[i])
+        return True
+    except:
+        return False
 
+def move_resources_to_cloud():
     dirlist = os.listdir(broken)
     for cpu in dirlist:
-        os.rename(broken+cpu,idles+cpu)
+        os.rename(broken+cpu,clouds+cpu)
     dirlist = os.listdir(used)
     for cpu in dirlist:
-        os.rename(used+cpu,idles+cpu)
+        os.rename(used+cpu,clouds+cpu)
     dirlist = os.listdir(quarantined)
     for cpu in dirlist:
-        os.rename(quarantined+cpu,idles+cpu)
+        os.rename(quarantined+cpu,clouds+cpu)
     dirlist = os.listdir(idles)
-    #quarantine files beyond use fraction limit (rounded to closest integer)
-    num_excluded = round(len(dirlist)*(1.-conf.resource_use_fraction))
-    for i in range(0,int(num_excluded)):
-        os.rename(idles+dirlist[i],quarantined+dirlist[i])
+    for cpu in dirlist:
+        os.rename(idles+cpu,clouds+cpu)
+    dirlist = os.listdir(idles)
+    for cpu in dirlist:
+        os.rename(idles+cpu,clouds+cpu)
+
 
 
 def cleanup_mountpoints(remount=True):
@@ -246,6 +278,38 @@ def calculate_threadnumber():
         nstreams = conf.cmssw_threads
     expected_processes = idlecount/nstreams
 
+def updateBlacklist(parseOnly=False):
+    black_list=[]
+    active_black_list=[]
+    if conf.role=='bu':
+        try:
+            os.stat('/etc/appliance/blacklist')
+            with open('/etc/appliance/blacklist',"r") as fi:
+                try:
+                    static_black_list = json.load(fi)
+                    black_list+=static_black_list
+                    logging.info("found these resources in /etc/appliance/blacklist:"+str(black_list))
+                except ValueError:
+                    logging.error("error parsing /etc/appliance/blacklist")
+        except:
+            #no blacklist file, this is ok
+            pass
+        #TODO:have mandatory check in blacklist DB
+        try:
+            forceUpdate=False
+            with open(os.path.join(conf.watch_directory,'appliance','blacklist','r') as fi:
+                active_black_list = json.load(fi)
+        except:
+            forceUpdate=True
+        if forceUpdate==True or active_black_list != black_list:
+            try:
+                with open(os.path.join(conf.watch_directory,'appliance','blacklist'),'w') as fi:
+                    json.dump(black_list,fi)
+            except:
+                return False,black_list
+    return True,black_list
+
+
 class system_monitor(threading.Thread):
 
     def __init__(self):
@@ -276,11 +340,27 @@ class system_monitor(threading.Thread):
         try:
             logging.debug('entered system monitor thread ')
             global suspended
+            res_path_temp = os.path.join(conf.watch_directory,'appliance','resource_summary_temp')
+            res_path = os.path.join(conf.watch_directory,'appliance','resource_summary')
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
                 if suspended:continue
                 tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
+
+                #TODO:multiple mount points on BU
+                if conf.role == 'bu':
+                    resource_count = 0
+                    current_time = time.time()
+                    for key,entry in boxinfoFUMap:
+                        if current_time - entry[1] > 20:continue
+                        resource_count+=int(entry[0]['idles'])
+                        resource_count+=int(entry[0]['online'])
+                        resource_count+=int(entry[0]['broken'])
+                    res_doc = {"resources":resource_count}
+                    with open(res_path_temp,'w') as fp:
+                        json.dump(res_doc,fp)
+                    os.rename(res_path_temp,res_path)
 
                 fp = None
                 for mfile in self.file:
@@ -292,6 +372,7 @@ class system_monitor(threading.Thread):
                         fp.write('used='+str(len(os.listdir(used)))+'\n')
                         fp.write('broken='+str(len(os.listdir(broken)))+'\n')
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
+                        fp.write('cloud='+str(len(os.listdir(clouds)))+'\n')
                         fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
                         fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
                         #two lines with active runs (used to check file consistency)
@@ -309,6 +390,7 @@ class system_monitor(threading.Thread):
                         fp.write('used=0\n')
                         fp.write('broken=0\n')
                         fp.write('quarantined=0\n')
+                        fp.write('cloud=0\n')
                         fp.write('usedRamdisk='+str(((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)>>20)+'\n')
                         fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize)>>20)+'\n')
                         fp.write('usedOutput='+str(((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)>>20)+'\n')
@@ -890,16 +972,24 @@ class Run:
         except Exception as ex:
             logging.info("exception encountered in looking for resources")
             logging.info(ex)
-        logging.info(dirlist)
+        logging.info(str(dirlist))
         current_time = time.time()
         count = 0
         cpu_group=[]
         #self.lock.acquire()
 
+        update_success,black_list=updateBlacklist()
+        if update_success=False:
+            logging.fatal("unable to check blacklist: giving up on run start")
+            return False
+
         for cpu in dirlist:
             #skip self
             if conf.role=='bu' and cpu == os.uname()[1]:continue
-
+            if cpu in black_list:
+                logging.info("skipping blacklisted resource "+str(resource.cpu))
+                continue
+ 
             count = count+1
             cpu_group.append(cpu)
             age = current_time - os.path.getmtime(idles+cpu)
@@ -913,16 +1003,26 @@ class Run:
                 if age < 10:
                     cpus = [cpu]
                     self.ContactResource(cpus)
+        return True
         #self.lock.release()
 
     def Start(self):
+        black_list=[]
+        if conf.role=='bu':
+            try:
+                with open('/etc/appliance/blacklist',"r") as fi:
+                    black_list = json.load(fi)
+            except:pass
         self.is_active_run = True
         for resource in self.online_resource_list:
             logging.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
             if conf.role == 'fu':
                 self.StartOnResource(resource)
             else:
-                resource.NotifyNewRun(self.runnumber)
+                if resource.cpu in black_list:
+                    logging.info("skipping blacklisted resource "+str(resource.cpu))
+                else:
+                    resource.NotifyNewRun(self.runnumber)
                 #update begin time to after notifying FUs
                 self.beginTime = datetime.datetime.now()
         if conf.role == 'fu' and conf.dqm_machine==False:
@@ -1005,6 +1105,12 @@ class Run:
         fp.close()
         #self.lock.release()
         #logging.debug("StartOnResource lock released")
+
+    def Stop(self):
+        #used to gracefully stop CMSSW and finish scripts
+        with open(os.path.join(self.dirname,"CMSSW_STOP"),'w') as f:
+          pass
+        
 
     def Shutdown(self,herod=False):
         #herod mode sends sigkill to all process, however waits for all scripts to finish
@@ -1183,7 +1289,19 @@ class Run:
                     active_runs.remove(run_num)
             logging.info("new active runs.."+str(active_runs))
 
+        global cloud_mode
+        if cloud_mode==True:
+           resource_lock.acquire()
+            if len(active_runs)>1:
+                logging.info("VM mode: waiting for runs: "+str(active_runs)+" to finish")
+            else:
+                #give resources to cloud and bail out
+                move_resources_to_cloud()
+                entering_cloud_mode=False 
+           resource_lock.release()
+
         except Exception as ex:
+            resource_lock.release()
             logging.error("exception encountered in ending run")
             logging.exception(ex)
 
@@ -1278,6 +1396,27 @@ class RunRanger:
             if nr!=0:
                 try:
                     logging.info('new run '+str(nr))
+                    if cloud_mode==True and entering_cloud_mode==False:
+                        logging.info("received new run notification in VM mode. Checking if idle cores are available...")
+                        try:
+                            if len(os.listdir(idles))<1:
+                                logging.info("this run is skipped because FU is in VM mode and resources have not been returned")
+                                return
+                            #return all resources to HLTD (TODO:check if VM tool is done)
+                            while True:
+                                resource_lock.acquire()
+                                #retry this operation in case cores get moved around by other means
+                                if cleanup_resources()==True:
+                                    resource_lock.release()
+                                    break
+                                resource_lock.release()
+                                time.sleep(0.1)
+                                logging.warning("could not move all resources, retrying.")
+                            cloud_mode=False
+                        except Exception as ex:
+                            #resource_lock.release()
+                            logging.fatal("failed to disable VM mode when receiving notification for run "+str(nr))
+                            logging.exception(ex)
                     if conf.role == 'fu':
                         bu_dir = bu_disk_list_ramdisk[0]+'/'+dirname
                         try:
@@ -1299,8 +1438,10 @@ class RunRanger:
                                 
                     run_list.append(Run(nr,event.fullpath,bu_dir))
                     resource_lock.acquire()
-                    run_list[-1].AcquireResources(mode='greedy')
-                    run_list[-1].Start()
+                    if run_list[-1].AcquireResources(mode='greedy'):
+                        run_list[-1].Start()
+                    else:
+                        run_list.remove(run_list[-1])
                     resource_lock.release()
                 except OSError as ex:
                     logging.error("RunRanger: "+str(ex)+" "+ex.filename)
@@ -1524,6 +1665,35 @@ class RunRanger:
             except:pass
             suspended=False
             logging.info("Remount is performed")
+
+        elif dirname.startswith('exclude') and conf.role == 'fu':
+            #service on this machine is asked to be excluded for cloud use
+            logging.info('machine exclude initiated')
+            global cloud_mode
+            resource_lock.acquire()
+            cloud_mode=True
+            entering_cloud_mode=True
+            try:
+                for run in run_list:
+                    run.Stop()#writes signal file for CMSSW to quit and then normal end of runs will be done
+            except Exception as ex:
+                logging.fatal("Unable to clear runs. Will not enter VM mode.")
+                logging.exception(ex)
+                cloud_mode=False
+                resource_lock.release()
+
+        elif dirname.startswith('include') and conf.role == 'fu':
+            if cloud_mode==True:
+                while True:
+                    resource_lock.acquire()
+                    #retry this operation in case cores get moved around by other means
+                    if entering_cloud_mode==False and cleanup_resources()==True:
+                        resource_lock.release()
+                        break
+                    resource_lock.release()
+                    time.sleep(0.1)
+                    logging.warning("could not move all resources, retrying.")
+                cloud_mode=False
  
         logging.debug("RunRanger completed handling of event "+event.fullpath)
 
@@ -1561,12 +1731,14 @@ class ResourceRanger:
 
     def process_IN_MOVED_TO(self, event):
         logging.debug('ResourceRanger-MOVEDTO: event '+event.fullpath)
+        basename = os.path.basename(event.fullpath)
+        if basename.startswith('resource_summary'):return
         try:
             resourcepath=event.fullpath[1:event.fullpath.rfind("/")]
             resourcestate=resourcepath[resourcepath.rfind("/")+1:]
             resourcename=event.fullpath[event.fullpath.rfind("/")+1:]
             resource_lock.acquire()
-            if not (resourcestate == 'online' or resourcestate == 'offline'
+            if not (resourcestate == 'online' or resourcestate == 'cloud'
                     or resourcestate == 'quarantined'):
                 logging.debug('ResourceNotifier: new resource '
                               +resourcename
@@ -1664,8 +1836,9 @@ class ResourceRanger:
         except:pass
 
     def process_IN_MODIFY(self, event):
-
         logging.debug('ResourceRanger-MODIFY: event '+event.fullpath)
+        basename = os.path.basename(event.fullpath)
+        if basename.startswith('resource_summary'):return
         try:
             bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
             if event.fullpath == bus_config:
@@ -1684,6 +1857,33 @@ class ResourceRanger:
     def process_default(self, event):
         logging.debug('ResourceRanger: event '+event.fullpath +' type '+ str(event.mask))
         filename=event.fullpath[event.fullpath.rfind("/")+1:]
+
+    def process_IN_CLOSE_WRITE(self, event):
+        logging.debug('ResourceRanger-IN_CLOSE_WRITE: event '+event.fullpath)
+        basename = os.path.basename(event.fullpath)
+        if basename.startswith('resource_summary'):return
+        if conf.role=='fu':return
+        if basename == os.uname()[1]:return
+        if basename == 'blacklist':
+                with open(os.path.join(conf.watch_directory,'appliance','blacklist','r') as fi:
+                    machine_blacklist = json.load(fi)
+                #TODO:cases where blacklist is missing should be handled!
+        resourcepath=event.fullpath[0:event.fullpath.rfind("/")]
+        if resourcepath.endswith('boxes'):
+            global boxinfoFUMap
+            if basename in machine_blacklist:
+                try:boxinfoFUMap.remove(basename)
+                except:pass
+            else:
+                try:
+                    fileHandler(event.fullpath)
+                    current_time = time.time()
+                    boxinfoFUMap[basename] = [infile.data,current_time]
+                except Exception as ex:
+                    logging.error("Unable to read of parse boxinfo file "+basename)
+                    logging.exception(ex)
+        #
+ 
 
 
 class hltd(Daemon2,object):
@@ -1725,8 +1925,11 @@ class hltd(Daemon2,object):
             """
             cleanup resources
             """
+            while True:
+                if cleanup_resources()==True:break
+                time.sleep(0.1)
+                logging.warning("retrying cleanup_resources")
 
-            cleanup_resources()
             """
             recheck mount points
             this is done at start and whenever the file /etc/appliance/bus.config is modified
@@ -1743,6 +1946,10 @@ class hltd(Daemon2,object):
             except:
                 pass
 
+        if conf.role == 'bu':
+            #todo:checks
+            global machine_blacklist
+            update_success,machine_blacklist=updateBlacklist(parseOnly=True)
 
         """
         the line below is a VERY DIRTY trick to address the fact that
@@ -1771,21 +1978,30 @@ class hltd(Daemon2,object):
         runRanger.start_inotify()
         logging.info("started RunRanger  - watch_directory " + watch_directory)
 
+        appliance_base=resource_base
+        if resource_base.endswith('/'):
+            resource_base = resource_base[:-1]
+        if resource_base.rfind('/')>0:
+            appliance_base = resource_base[:resource_base.rfind('/')]
+
         rr = ResourceRanger()
         try:
-            imask  = inotify.IN_MOVED_TO | inotify.IN_CREATE | inotify.IN_DELETE | inotify.IN_MODIFY
             if conf.role == 'bu':
+                pass
                 #currently does nothing on bu
+                imask  = inotify.IN_MOVED_TO | inotify.IN_CLOSE_WRITE | inotify.IN_DELETE
                 rr.register_inotify_path(resource_base, imask)
                 rr.register_inotify_path(resource_base+'/boxes', imask)
             else:
-                rr.register_inotify_path(resource_base, imask)
+                imask_appl  = inotify.IN_MODIFY
+                imask  = inotify.IN_MOVED_TO
+                rr.register_inotify_path(appliance_base, imask_appl)
                 rr.register_inotify_path(resource_base+'/idle', imask)
                 rr.register_inotify_path(resource_base+'/except', imask)
             rr.start_inotify()
             logging.info("started ResourceRanger - watch_directory "+resource_base)
         except Exception as ex:
-            logging.error("Exception caught in starting notifier2")
+            logging.error("Exception caught in starting ResourceRanger notifier")
             logging.error(ex)
 
         try:
