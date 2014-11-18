@@ -3,7 +3,6 @@ if [ -n "$1" ]; then
   if [ -n "$2" ]; then
     if [ -n "$3" ]; then
 
-
       if [ -f $1 ]; then
         echo "base directory not found!"
       fi
@@ -17,22 +16,19 @@ if [ -n "$1" ]; then
 
       echo "makeloop script invoked for creating loop device disk $2 in ${basedir} of size $3 MB"
 
-      #mount | grep "$mountpoint" | while read a; do ret=umount  $mountpoint; done
       umount  $mountpoint
 
       if [ $? != 0 ]; then
         echo "Unsuccessful umount of ${mountpoint}"
 
-        
         killpid=`lsof /dev/shm/myruns/img2 | awk -v N=$2 '{print $2}' | grep -v PID`
-        #killpid=`lsof /dev/shm/myruns/img2  | grep -v COMMAND | awk -v N=$2 '{print $2}'`
         echo "used by: $killpid. Trying to kill these processes."
         myarr=($killpid)
         for i in "${myarr[@]}"
         do
-            if [ $i == $$ ]; then
-            exit 9
-            fi
+            #if [ $i == $$ ]; then
+            #exit 9
+            #fi
             kill -9 $i
         done
         sleep 1
