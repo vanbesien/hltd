@@ -103,10 +103,6 @@ def cleanup_mountpoints(remount=True):
         #make subdirectories if necessary and return
         if remount==True:
             try:
-                os.makedirs(conf.bu_base_dir)
-            except OSError:
-                pass
-            try:
                 os.makedirs(os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory))
             except OSError:
                 pass
@@ -120,31 +116,38 @@ def cleanup_mountpoints(remount=True):
         out = process.communicate()[0]
         mounts = re.findall('/'+conf.bu_base_dir+'[0-9]+',out)
         mounts = list(set(mounts))
-        #if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
-        logging.info("cleanup_mountpoints: found following mount points ")
+        logging.info("cleanup_mountpoints: found following mount points: ")
         logging.info(mounts)
         umount_failure=False
         for point in mounts:
-            logging.info("trying umount of "+point)
-            try:
-                subprocess.check_call(['umount','/'+point])
-            except subprocess.CalledProcessError, err1:
-                pass
-            except Exception as ex:
-                logging.exception(ex)
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
             except subprocess.CalledProcessError, err1:
-                logging.error("Error calling umount in cleanup_mountpoints")
-                logging.error(str(err1.returncode))
-                umount_failure=True
+                logging.info("trying to kill users of ramdisk")
+                try:
+                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.ramdisk_subdirectory)])]
+                except subprocess.CalledProcessError, err2:
+                    logging.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
+                try:
+                    subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
+                except subprocess.CalledProcessError, err2:
+                    logging.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
+                    umount_failure=True
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.output_subdirectory)])
             except subprocess.CalledProcessError, err1:
-                logging.error("Error calling umount in cleanup_mountpoints")
-                logging.error(str(err1.returncode))
-                umount_failure=True
-            #this will remove directories only if they are empty (as unomunted mount point should be)
+                logging.info("trying to kill users of output")
+                try:
+                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.output_subdirectory)])]
+                except subprocess.CalledProcessError, err2:
+                    logging.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
+                try:
+                    subprocess.check_call(['umount',os.path.join('/'+point,conf.output_subdirectory)])
+                except subprocess.CalledProcessError, err2:
+                    logging.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
+                    umount_failure=True
+ 
+            #this will remove directories only if they are empty (as unmounted mount point should be)
             try:
                 if os.path.join('/'+point,conf.ramdisk_subdirectory)!='/':
 	            os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
@@ -155,11 +158,6 @@ def cleanup_mountpoints(remount=True):
                     os.rmdir(os.path.join('/'+point,conf.output_subdirectory))
             except Exception as ex:
                 logging.exception(ex)
-            try:
-                if os.path.join('/',point)!='/':
-                    os.rmdir('/'+point)
-            except Exception as ex:
-                logging.exception(ex)
         if remount==False:
             if umount_failure:return False
             return True
@@ -168,10 +166,6 @@ def cleanup_mountpoints(remount=True):
         if os.path.exists(bus_config):
             for line in open(bus_config):
                 logging.info("found BU to mount at "+line.strip())
-                try:
-                    os.makedirs('/'+conf.bu_base_dir+str(i))
-                except OSError:
-                    pass
                 try:
                     os.makedirs(os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                 except OSError:
@@ -241,7 +235,6 @@ def cleanup_mountpoints(remount=True):
                         logging.exception(err2)
                         logging.fatal("Unable to mount output - exiting.")
                         sys.exit(1)
-
 
                 i+=1
         #clean up suspended state
