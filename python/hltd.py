@@ -44,9 +44,14 @@ expected_processes = None
 run_list=[]
 bu_disk_list_ramdisk=[]
 bu_disk_list_output=[]
+bu_disk_list_ramdisk_instance=[]
+bu_disk_list_output_instance=[]
 active_runs=[]
 resource_lock = threading.Lock()
 suspended=False
+
+#prepare log directory
+if not os.path.exists(conf.log_dir): os.makedirs(conf.log_dir)
 
 logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
@@ -80,11 +85,21 @@ def cleanup_resources():
 
 
 def cleanup_mountpoints(remount=True):
-    bu_disk_list_ramdisk[:] = []
-    bu_disk_list_output[:] = []
+    bu_disk_list_ramdisk = []
+    bu_disk_list_output = []
+    bu_disk_list_ramdisk_instance = []
+    bu_disk_list_output_instance = []
+ 
     if conf.bu_base_dir[0] == '/':
-        bu_disk_list_ramdisk[:] = [os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory)]
-        bu_disk_list_output[:] = [os.path.join(conf.bu_base_dir,conf.output_subdirectory)]
+        bu_disk_list_ramdisk = [os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory)]
+        bu_disk_list_output = [os.path.join(conf.bu_base_dir,conf.output_subdirectory)]
+        if conf.instance!="main":
+            bu_disk_list_ramdisk_instance = bu_disk_list_ramdisk
+            bu_disk_list_output_instance = bu_disk_list_output
+        else:
+            bu_disk_list_ramdisk_instance = [os.path.join(bu_disk_list_ramdisk[0],conf.instance)]
+            bu_disk_list_output_instance = [os.path.join(bu_disk_list_output[0],conf,instance)]
+ 
         #make subdirectories if necessary and return
         if remount==True:
             try:
@@ -194,7 +209,12 @@ def cleanup_mountpoints(remount=True):
                              line.strip()+':/fff/'+conf.ramdisk_subdirectory,
                              os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory)]
                             )
-                        bu_disk_list_ramdisk.append(os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
+                        toappend = os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory)
+                        bu_disk_list_ramdisk.append(toappend)
+                        if conf.instance=="main":
+                            bu_disk_list_ramdisk_instance.append(toappend)
+                        else:
+                            bu_disk_list_ramdisk_instance.append(os.path.join(toappend,conf.instance))
                     except subprocess.CalledProcessError, err2:
                         logging.exception(err2)
                         logging.fatal("Unable to mount ramdisk - exiting.")
@@ -211,7 +231,12 @@ def cleanup_mountpoints(remount=True):
                              line.strip()+':/fff/'+conf.output_subdirectory,
                              os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory)]
                             )
-                        bu_disk_list_output.append(os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
+                        toappend = os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory)
+                        bu_disk_list_output.append(toappend)
+                        if conf.instance=="main":
+                            bu_disk_list_output_instance.append(toappend)
+                        else:
+                            bu_disk_list_output_instance.append(os.path.join(toappend,conf.instance))
                     except subprocess.CalledProcessError, err2:
                         logging.exception(err2)
                         logging.fatal("Unable to mount output - exiting.")
@@ -259,7 +284,8 @@ class system_monitor(threading.Thread):
 
     def rehash(self):
         if conf.role == 'fu':
-            self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list_ramdisk]
+            #@SM:subdir
+            self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list_ramdisk_instance]
         else:
             self.directory = [conf.watch_directory+'/appliance/boxes/']
         self.file = [x+self.hostname for x in self.directory]
@@ -364,7 +390,8 @@ class BUEmu:
         configtouse = conf.test_bu_config
         destination_base = None
         if role == 'fu':
-            destination_base = bu_disk_list_ramdisk[startindex%len(bu_disk_list_ramdisk)]
+            #@SM:subdir
+            destination_base = bu_disk_list_ramdisk_instance[startindex%len(bu_disk_list_ramdisk_instance)]
         else:
             destination_base = conf.watch_directory
 
@@ -458,7 +485,7 @@ class OnlineResource:
         independent mounts of the BU - it should not be necessary in due course
         IFF it is necessary, it should address "any" number of mounts, not just 2
         """
-        input_disk = bu_disk_list_ramdisk[startindex%len(bu_disk_list_ramdisk)]
+        input_disk = bu_disk_list_ramdisk_instance[startindex%len(bu_disk_list_ramdisk_instance)]
         #run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
@@ -813,7 +840,8 @@ class Run:
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
-            self.rawinputdir= bu_disk_list_ramdisk[0]+'/run' + str(self.runnumber).zfill(conf.run_number_padding)
+            #@SM:subdir
+            self.rawinputdir= os.path.join(bu_disk_list_ramdisk_instance[0],'run' + str(self.runnumber).zfill(conf.run_number_padding))
 
         self.lock = threading.Lock()
         #conf.use_elasticsearch = False
@@ -1276,7 +1304,8 @@ class RunRanger:
                 try:
                     logging.info('new run '+str(nr))
                     if conf.role == 'fu':
-                        bu_dir = bu_disk_list_ramdisk[0]+'/'+dirname
+                        #@SM:subdir
+                        bu_dir = bu_disk_list_ramdisk_instance[0]+'/'+dirname
                         try:
                             os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
                         except:
@@ -1791,16 +1820,16 @@ class hltd(Daemon2,object):
             # the following allows the base directory of the http
             # server to be 'conf.watch_directory, which is writeable
             # to everybody
-            if os.path.exists(conf.watch_directory+'/cgi-bin'):
-                os.remove(conf.watch_directory+'/cgi-bin')
-            os.symlink('/opt/hltd/cgi',conf.watch_directory+'/cgi-bin')
+            if os.path.exists(watch_directory+'/cgi-bin'):
+                os.remove(watch_directory+'/cgi-bin')
+            os.symlink('/opt/hltd/cgi',watch_directory+'/cgi-bin')
 
             handler.cgi_directories = ['/cgi-bin']
             logging.info("starting http server on port "+str(conf.cgi_port))
             httpd = BaseHTTPServer.HTTPServer(("", conf.cgi_port), handler)
 
             logging.info("hltd serving at port "+str(conf.cgi_port)+" with role "+conf.role)
-            os.chdir(conf.watch_directory)
+            os.chdir(watch_directory)
             httpd.serve_forever()
         except KeyboardInterrupt:
             logging.info("terminating all ongoing runs")

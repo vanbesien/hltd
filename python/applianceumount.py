@@ -51,9 +51,10 @@ class UmountResponseReceiver(threading.Thread):
     def stop(self):
             self.httpd.shutdown()
 
-def checkMode():
+def checkMode(instance):
     try:
         hltdconf='/etc/hltd.conf'
+        if instance != "main": hltdconf='/etc/hltd-'+instance+'.conf'
         with open(hltdconf,'r') as f:
             for l in f.readlines():
                 ls=l.strip(' \n')
@@ -63,10 +64,11 @@ def checkMode():
         pass
     return "unknown"
 
-def stopFUs():
+def stopFUs(instance):
 
     hltdconf='/etc/hltd.conf'
     watch_directory='/fff/ramdisk'
+    if instance != "main": hltdconf='/etc/hltd-'+instance+'.conf'
     machine_is_bu=False
     machine_is_fu=False
     cgi_port=9000
@@ -84,10 +86,12 @@ def stopFUs():
                 cgi_port=int(ls.split('=')[1].strip(' '))
         f.close()
     except Exception as ex:
-        print "Unable to read parameters",str(ex),"using defaults"
+        if instance!="main": raise ex
+        else:
+            print "Unable to read parameters",str(ex),"using defaults"
 
     if machine_is_bu==False:return True
-    syslog.syslog("hltd:Initiating FU unmount procedure")
+    syslog.syslog("hltd-"+str(instance)+": initiating FU unmount procedure")
     #continue with notifying FUs
     boxinfodir=os.path.join(watch_directory,'appliance/boxes')
 
@@ -106,7 +110,7 @@ def stopFUs():
         current_time = time.time()
         age = current_time - os.path.getmtime(os.path.join(boxinfodir,machine))
         print "found machine",machine," which is ",str(age)," seconds old"
-        syslog.syslog("hltd: found machine "+str(machine) + " which is "+ str(age)+" seconds old")
+        syslog.syslog("hltd-"+str(instance)+": found machine "+str(machine) + " which is "+ str(age)+" seconds old")
         if age < 30:
             if receiver==None:
                 receiver = UmountResponseReceiver(watch_directory,cgi_port)
@@ -133,7 +137,7 @@ def stopFUs():
                     machinePending=True
                     activeMachines.append(machine)
 
-            syslog.syslog("hltd: waiting for machines to respond:"+str(activeMachines))
+            syslog.syslog("hltd-"+str(instance)+": waiting for machines to respond:"+str(activeMachines))
             if machinePending:
                 usedTimeout+=2
                 time.sleep(2)
@@ -142,12 +146,12 @@ def stopFUs():
     except:
         #handle interrupt
         print "Interrupted!"
-        syslog.syslog("hltd: FU suspend was interrupted")
+        syslog.syslog("hltd-"+str(instance)+": FU suspend was interrupted")
         count=0
         if receiver!=None:
           while receiver.finished==False:
             count+=1
-            if count%100==0:syslog.syslog("hltd stop: trying to stop suspend receiver HTTP server thread (script interrupted)")
+            if count%100==0:syslog.syslog("hltd-"+str(instance)+": stop: trying to stop suspend receiver HTTP server thread (script interrupted)")
             try:
                 receiver.stop()
                 time.sleep(.1)
@@ -161,7 +165,7 @@ def stopFUs():
     if receiver!=None:
       while receiver.finished==False:
         count+=1
-        if count%100==0:syslog.syslog("hltd stop: trying to stop suspend receiver HTTP server thread")
+        if count%100==0:syslog.syslog("hltd-"+str(instance)+": stop: trying to stop suspend receiver HTTP server thread")
         try:
             receiver.stop()
             time.sleep(.1)
@@ -172,10 +176,10 @@ def stopFUs():
 
     print "Finished FU suspend for:",str(machinelist)
     print "Not successful:",str(activeMachines)
-    syslog.syslog("hltd: unmount script completed. remaining machines :"+str(activeMachines))
+    syslog.syslog("hltd-"+str(instance)+": unmount script completed. remaining machines :"+str(activeMachines))
     if usedTimeout==maxTimeout:
         print "FU suspend failed for hosts:",activeMachines
-        syslog.syslog("hltd: FU suspend failed for hosts"+str(activeMachines))
+        syslog.syslog("hltd-"+str(instance)+": FU suspend failed for hosts"+str(activeMachines))
         return False
 
     return True

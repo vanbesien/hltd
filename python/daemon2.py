@@ -17,12 +17,23 @@ class Daemon2:
     attn: May change in the near future to use PEP daemon
     """
 
-    def __init__(self, pidfile, processname, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+    def __init__(self, instance, processname, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
                       self.stdin = stdin
                       self.stdout = stdout
                       self.stderr = stderr
-                      self.pidfile = pidfile
+                      self.instance = instance
                       self.processname = processname
+
+                      if instance=="main":
+                          self.pidfile = '/var/run/hltd.pid'
+                          self.conffile = '/etc/hltd.conf'
+                          self.lockfile = '/var/lock/subsys/hltd'
+                      else:
+                          self.pidfile = "/var/run/hltd-"+instance+".pid"
+                          self.conffile = "/etc/hltd-"+instance+".conf"
+                          self.lockfile = '/var/lock/subsys/hltd-'+instance
+
+
 
     def daemonize(self):
 
@@ -73,12 +84,15 @@ class Daemon2:
         file(self.pidfile,'w+').write("%s\n" % pid)
 
     def delpid(self):
-        os.remove(self.pidfile)
+        if os.path.exists(self.pidfile):
+            os.remove(self.pidfile)
     def start(self):
         """
         Start the daemon
         """
+        if not os.path.exists(self.conffile): raise Exception("Missing "+self.conffile)
         # Check for a pidfile to see if the daemon already runs
+
         try:
             pf = file(self.pidfile,'r')
             pid = int(pf.read().strip())
@@ -212,7 +226,7 @@ class Daemon2:
     def emergencyUmount(self):
 
         cfg = ConfigParser.SafeConfigParser()
-        cfg.read('/etc/hltd.conf')
+        cfg.read(self.conffile)
 
         bu_base_dir=None#/fff/BU0?
         ramdisk_subdirectory = 'ramdisk'
@@ -229,7 +243,7 @@ class Daemon2:
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
         mounts = re.findall('/'+bu_base_dir+'[0-9]+',out)
-        if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
+        mounts = list(set(mounts))
         for point in mounts:
             sys.stdout.write("trying emergency umount of "+point+"\n")
             try:
@@ -252,4 +266,20 @@ class Daemon2:
                 sys.stdout.write(str(err1.returncode)+"\n")
             except Exception as ex:
                 sys.stdout.write(ex.args[0]+"\n")
+
+
+    def touchLockFile(self):
+        try:
+            with open(self.lockfile,"w+") as fi:
+                pass
+        except:
+            pass
+
+    def removeLockFile():
+        try:
+            os.unlink(self.lockfile)
+        except:
+            pass
+
+
  

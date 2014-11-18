@@ -13,24 +13,18 @@ from applianceumount import checkMode
 import time
 import syslog
 
-def touchLockFile():
-    try:
-        with open('/var/lock/subsys/hltd',"w+") as fi:
-            pass
-    except:
-        pass
-
-def removeLockFile():
-    try:
-        os.unlink('/var/lock/subsys/hltd')
-    except:
-        pass
-
 if __name__ == "__main__":
-    daemon = hltd('/var/run/hltd.pid')
-    if len(sys.argv) == 2:
+
+    if len(sys.argv) <=2 or sys.argv[2]=="main":
+        instance = "main"
+    else:
+        instance = sys.argv[2]
+
+    daemon = hltd(instance)
+
+    if len(sys.argv) >= 2:
         if 'start' == sys.argv[1]:
-            touchLockFile()
+            daemon.touchLockFile()
             output = Popen(["/opt/hltd/python/hltd.py"], stdout=PIPE).communicate()[0]
             if daemon.silentStatus():
                 print '[OK]'
@@ -40,7 +34,7 @@ if __name__ == "__main__":
         elif 'stop' == sys.argv[1]:
             if daemon.status():
                 daemon.stop()
-            elif os.path.exists('/var/run/hltd.pid'):
+            else:
                 daemon.delpid()
 
             #determine runlevel
@@ -53,55 +47,53 @@ if __name__ == "__main__":
                 to_level = std_out.split('\t')[0].rstrip('\n').strip().split(' ')[1]
                 if to_level.isdigit() and int(to_level) in [0,1,6] and str(from_level)!="1":
  
-                    if stopFUs()==False:
+                    if stopFUs(instance)==False:
                         msg = "Shutdown or reboot is cancelled by hltd - FU umount failed! Switching to runlevel 3..."
-                        syslog.syslog(msg)
+                        syslog.syslog("hltd-"+str(instance)+":"+msg)
                         time.sleep(2)
                         p = Popen("init 3", shell=True, stdout=PIPE)
                         p.wait()
                     else:
-                        removeLockFile()
+                        daemon.removeLockFile()
                 else:
-                    if checkMode()=="fu": 
-                        removeLockFile()
+                    if checkMode(instance)=="fu": 
+                        daemon.removeLockFile()
                     else:
                         print "Lock file remains. Run stop-appliance to unmount FUs."
             except:
                 print "Runlevel:",std_out
-                syslog.syslog("Exception when determining runlevel:"+str(std_out))
+                syslog.syslog("hltd-"+str(instance)+":Exception when determining runlevel:"+str(std_out))
                 
 
         elif 'stop-appliance' == sys.argv[1]:
             if daemon.status():
                 daemon.stop()
-            elif os.path.exists('/var/run/hltd.pid'):
+            else:
                 daemon.delpid()
 
-            if checkMode()=="fu":
+            if checkMode(instance)=="fu":
                 print "This command is not supported on FU."
                
-            elif stopFUs()==False:
+            elif stopFUs(instance)==False:
                 print "FU umount failed, lock file remains. FU umount failed."
             else:
-                removeLockFile()
+                daemon.removeLockFile()
 
         elif 'stop-light' == sys.argv[1]:
             if daemon.status():
                 daemon.stop()
-            elif os.path.exists('/var/run/hltd.pid'):
+            else:
                 daemon.delpid()
-            removeLockFile()
+            daemon.removeLockFile()
  
         elif 'restart' == sys.argv[1]:
             daemon.restart()
-            touchLockFile()
+            daemon.touchLockFile()
         elif 'status' == sys.argv[1]:
             daemon.status()
         else:
             print "Unknown command"
             sys.exit(2)
-#        print "hltd "+sys.argv[1]+"ed"
-#        logging.debug("executed "+sys.argv[1])
         sys.exit(0)
 
     else:
