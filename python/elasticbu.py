@@ -49,9 +49,9 @@ def getURLwithIP(url):
 
 class elasticBandBU:
 
-    def __init__(self,es_server_url,runnumber,startTime,runMode=True):
+    def __init__(self,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.es_server_url=es_server_url
+        self.es_server_url=conf.elastic_runindex_url
         self.runindex_write="runindex_"+conf.elastic_runindex_name+"_write"
         self.runindex_read="runindex_"+conf.elastic_runindex_name+"_read"
         self.runindex_name="runindex_"+conf.elastic_runindex_name
@@ -235,23 +235,6 @@ class elasticBandBU:
         documents = [document]
         self.index_documents('eols',documents)
 
-    def elasticize_minimerge(self,infile):
-        basename = infile.basename
-        self.logger.info(basename)
-        data = infile.data['data']
-        data.append(infile.mtime)
-        data.append(infile.ls[2:])
-        stream=infile.stream
-        if stream.startswith("stream"): stream = stream[6:]
-        data.append(stream)
-        values = [int(f) if str(f).isdigit() else str(f) for f in data]
-        keys = ["processed","accepted","errorEvents","fname","size","adler32","eolField1","eolField2","fm_date","ls","stream"]
-        document = dict(zip(keys, values))
-        document['id'] = infile.name
-        document['_parent']= self.runnumber
-        documents = [document]
-        self.index_documents('minimerge',documents)
-
     def index_documents(self,name,documents,bulk=True):
         attempts=0
         destination_index = ""
@@ -286,19 +269,19 @@ class elasticBandBU:
 class elasticCollectorBU():
 
     
-    def __init__(self, inMonDir, inRunDir, watchdir, rn):
+    def __init__(self, es, inRunDir):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.inputMonDir = inMonDir
         
 
         self.insertedModuleLegend = False
         self.insertedPathLegend = False
-        self.eorCheckPath = inRunDir + '/run' +  str(rn).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn'
+	self.inRunDir=inRunDir
         
         self.stoprequest = threading.Event()
         self.emptyQueue = threading.Event()
         self.source = False
         self.infile = False
+	self.es=es
 
     def start(self):
         self.run()
@@ -307,45 +290,40 @@ class elasticCollectorBU():
         self.stoprequest.set()
 
     def run(self):
-        self.logger.info("Start main loop")
-        count = 0
-        indexed_runend=False
-        timeout_start=None
-        while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
-            if self.source:
-                try:
-                    event = self.source.get(True,1.0) #blocking with timeout
-                    self.eventtype = event.mask
-                    self.infile = fileHandler(event.fullpath)
-                    self.emptyQueue.clear()
-                    if timeout_start != None:
-                        timeout_start=time.time()
+	self.logger.info("Start main loop")
+	count = 0
+	while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
+	    if self.source:
+		try:
+		    event = self.source.get(True,1.0) #blocking with timeout
+		    self.eventtype = event.mask
+		    self.infile = fileHandler(event.fullpath)
+		    self.emptyQueue.clear()
+		    if self.infile.filetype==EOR:
+			try:
+			    if self.es:
+			        dt=os.path.getctime(self.infile.fullpath)
+			        endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
+			        self.es.elasticize_runend_time(endtime)
+			except:pass
+			break
                     self.process()
                 except (KeyboardInterrupt,Queue.Empty) as e:
-                    if timeout_start != None:
-                        #exit after 10 min if no new files seen
-                        if time.time()-timeout_start>600:break
                     self.emptyQueue.set()
                 except (ValueError,IOError) as ex:
                     self.logger.exception(ex)
+                except Exception as ex:
+                    self.logger.exception(ex)
             else:
                 time.sleep(1.0)
-            #check for EoR file every 5 intervals
+            #check for run directory file every 5 loops
             count+=1
-            if indexed_runend==False and (count%5) == 0:
-                if os.path.exists(self.eorCheckPath):
-                    if es:
-                        dt=os.path.getctime(self.eorCheckPath)
-                        endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
-                        es.elasticize_runend_time(endtime)
-                    indexed_runend=True
-                    #start checking if idle
-                    timeout_start = time.time()
-                    continue
-                if False==os.path.exists(self.eorCheckPath[:self.eorCheckPath.rfind('/')]):
+            if (count%5) == 0:
+                if os.path.exists(self.inRunDir)==False:
+                    self.logger.info("Exiting because run directory in has disappeared")
                     #run dir deleted
                     break
-        self.logger.info("Stop main loop")
+	self.logger.info("Stop main loop (watching directory " + str(self.inRunDir) + ")")
 
 
     def setSource(self,source):
@@ -357,21 +335,18 @@ class elasticCollectorBU():
         filepath = self.infile.filepath
         filetype = self.infile.filetype
         eventtype = self.eventtype
-        if es and eventtype & (inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO):
+        if self.es and eventtype & (inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO):
             if filetype in [MODULELEGEND] and self.insertedModuleLegend == False:
-                if es.elasticize_modulelegend(filepath):
+                if self.es.elasticize_modulelegend(filepath):
                     self.insertedModuleLegend = True
             elif filetype in [PATHLEGEND] and self.insertedPathLegend == False:
-                if es.elasticize_pathlegend(filepath):
+                if self.es.elasticize_pathlegend(filepath):
                     self.insertedPathLegend = True
             elif filetype == EOLS:
                 self.logger.info(self.infile.basename)
-                es.elasticize_eols(self.infile)
-            elif filetype == OUTPUT:
-                #mini-merged json file on BU
-                self.logger.info(self.infile.basename)
-                es.elasticize_minimerge(self.infile)
-                self.infile.deleteFile()
+                self.es.elasticize_eols(self.infile)
+            elif filetype == EOR:
+                self.es.elasticize_eor(self.infile)
 
 
 class elasticBoxCollectorBU():
@@ -453,7 +428,7 @@ class BoxInfoUpdater(threading.Thread):
 
     def run(self):
         try:
-            self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
+            self.es = elasticBandBU(0,'',False)
             if self.stopping:return
 
             self.ec = elasticBoxCollectorBU(self.es)
@@ -654,36 +629,24 @@ if __name__ == "__main__":
 
     eventQueue = Queue.Queue()
 
-    es_server = sys.argv[0]
-    dirname = sys.argv[1]
-    outputdir = sys.argv[2]
-    runnumber = sys.argv[3]
+    runnumber = sys.argv[1]
     watchdir = conf.watch_directory
-    dt=os.path.getctime(dirname)
+    dt=os.path.getctime(mainDir)
     startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
     
+    mainDir = os.path.join(watchdir,'run'+ runnumber.zfill(conf.run_number_padding))
     #EoR file path to watch for
 
-    mainDir = dirname
     mainMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
-    monDir = os.path.join(dirname,"mon")
+    monDir = os.path.join(mainDir,"mon")
     monMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
-    outMonDir = os.path.join(outputdir,"mon")
-    outMonMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
 
     logger.info("starting elastic for "+mainDir)
     logger.info("starting elastic for "+monDir)
 
     try:
         logger.info("try create input mon dir " + monDir)
-        os.makedirs(monDir)
-    except OSError,ex:
-        logger.info(ex)
-        pass
-
-    try:
-        logger.info("try create output mon dir " + outMonDir)
-        os.makedirs(outMonDir)
+        os.mkdir(monDir)
     except OSError,ex:
         logger.info(ex)
         pass
@@ -699,17 +662,17 @@ if __name__ == "__main__":
 
         mr.start_inotify()
 
-        es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
+        es = elasticBandBU(runnumber,startTime)
 
         #starting elasticCollector thread
-        ec = elasticCollectorBU(monDir,dirname, watchdir, runnumber.zfill(conf.run_number_padding))
+        ec = elasticCollectorBU(es,mainDir)
         ec.setSource(eventQueue)
         ec.start()
 
     except Exception as e:
         logger.exception(e)
         print traceback.format_exc()
-        logger.error("when processing files from directory "+monDir)
+        logger.error("when processing files from directory "+mainDir)
 
     logging.info("Closing notifier")
     if mr is not None:

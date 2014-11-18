@@ -34,7 +34,7 @@ class elasticBand():
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo
         aliasName = runstring + "_" + indexSuffix
-        self.indexName = aliasName + "_" + self.hostname 
+        self.indexName = aliasName# + "_" + self.hostname 
  
     def imbue_jsn(self,infile):
         with open(infile.filepath,'r') as fp:
