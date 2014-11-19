@@ -891,7 +891,7 @@ class Run:
             try:
                 self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
                 self.buoutputdir = conf.micromerge_output+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
-                os.makedirs(self.rawinputdir+'/mon')
+                os.mkdir(self.rawinputdir+'/mon')
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
@@ -902,13 +902,9 @@ class Run:
             #note: start elastic.py first!
         if conf.use_elasticsearch == True:
             try:
-                if conf.elastic_bu_test is not None:
-                    #test mode
-                    logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,self.buoutputdir,str(self.runnumber)]
-                elif conf.role == "bu":
+                if conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,self.buoutputdir,str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',str(self.runnumber)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes),str(conf.elastic_cluster)]
@@ -1216,9 +1212,10 @@ class Run:
                 if self.elastic_monitor:
                     self.elastic_monitor.terminate()
                     time.sleep(.1)
+                    self.elastic_monitor.wait()
             except Exception as ex:
-                logging.info("exception encountered in shutting down elasticbu.py")
-                logging.exception(ex)
+                logging.info("exception encountered in shutting down elasticbu.py: " + str(ex))
+                #logging.exception(ex)
 
         global active_runs
         active_runs_copy = active_runs[:]
