@@ -227,7 +227,7 @@ def cleanup_mountpoints(remount=True):
                             )
                         toappend = os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory)
                         bu_disk_list_output.append(toappend)
-                        if conf.instance=="main":
+                        if conf.instance=="main" or conf.instance_same_destination==True:
                             bu_disk_list_output_instance.append(toappend)
                         else:
                             bu_disk_list_output_instance.append(os.path.join(toappend,conf.instance))
@@ -826,10 +826,13 @@ class Run:
         #
         if conf.role == "bu":
             try:
-                try:os.makedirs(conf.micromerge_output)
-                except:pass
                 self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
-                self.buoutputdir = conf.micromerge_output+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
+                if conf.instance!="main" and conf.instance_same_destination==False:
+                    try:os.mkdir(os.path.join(conf.micromerge_output,conf.instance))
+                    except:pass
+                    self.buoutputdir = os.path.join(conf.micromerge_output,instance,'run'+str(self.runnumber).zfill(conf.run_number_padding))
+                else:
+                    self.buoutputdir = os.path.join(conf.micromerge_output,'run'+str(self.runnumber).zfill(conf.run_number_padding))
                 os.mkdir(self.rawinputdir+'/mon')
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
