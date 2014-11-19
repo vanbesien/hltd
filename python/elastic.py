@@ -167,7 +167,6 @@ if __name__ == "__main__":
     update_modulo=conf.fastmon_insert_modulo
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
-    outputDir = conf.micromerge_output
     monDir = os.path.join(watchDir,"mon")
     tempDir = os.path.join(watchDir,ES_DIR_NAME)
 

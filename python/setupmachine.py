@@ -670,8 +670,6 @@ if __name__ == "__main__":
 
           #FU can only have one instance (so we take instance[0] and ignore others)
           hltdcfg.reg('instance',instances[0],'[General]')
-          #if instances!=['main']:
-          #    hltdcfg.reg('micromerge_output',os.path.join('/fff/BU0/output',instances[0]),'[General]')
 
           hltdcfg.reg('exec_directory',execdir,'[General]') 
           hltdcfg.reg('user',username,'[General]')

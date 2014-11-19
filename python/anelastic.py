@@ -226,7 +226,7 @@ class LumiSectionRanger():
           except:pass
         else:
           #name with pid: copy to output
-          self.infile.moveFile(os.path.join(conf.micromerge_output,run,self.infile.basename),copy = True,adler32=False,silent=True)
+          self.infile.moveFile(os.path.join(outputDir,run,self.infile.basename),copy = True,adler32=False,silent=True)
           
     def createEOLSFile(self,ls):
         eolname = os.path.join(self.tempdir,'run'+self.run_number.zfill(conf.run_number_padding)+"_"+ls+"_EoLS.jsn")
@@ -272,7 +272,7 @@ class LumiSectionRanger():
         eorname = 'run'+self.run_number.zfill(conf.run_number_padding)+"_ls0000_EoR_"+os.uname()[1]+".jsn"
         runname = 'run'+self.run_number.zfill(conf.run_number_padding)
         srcName = os.path.join(conf.watch_directory,runname,eorname)
-        destName = os.path.join(conf.micromerge_output,runname,eorname)
+        destName = os.path.join(outputDir,runname,eorname)
         document = {"data":[str(0)]}
 
         for stream in self.streamCounters.keys():
@@ -300,7 +300,7 @@ class LumiSectionRanger():
     #special handling for DQM stream (empty lumisection output json is created)
     def copyEmptyDQMJsons(self,ls):
         run = 'run'+self.run_number.zfill(conf.run_number_padding)
-        destinationStem = os.path.join(conf.micromerge_output,run,run+'_'+ls)
+        destinationStem = os.path.join(outputDir,run,run+'_'+ls)
         if "streamDQM" in self.activeStreams and self.emptyOutTemplate:
             destinationName = destinationStem+'_streamDQM_'+os.uname()[1]+'.jsn'
             self.logger.info("writing empty output json for streamDQM: "+str(ls))
@@ -848,7 +848,7 @@ if __name__ == "__main__":
     rawinputdir = sys.argv[3]
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
-    outputDir = conf.micromerge_output
+    outputDir = sys.argv[4]
 
     dqmHandler = None
 
