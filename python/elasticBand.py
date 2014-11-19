@@ -12,8 +12,6 @@ import logging
 
 from aUtils import *
 
-#MONBUFFERSIZE = 50
-es_server_url = 'http://localhost:9200'
 
 class elasticBand():
 

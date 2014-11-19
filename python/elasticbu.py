@@ -510,9 +510,9 @@ class RunCompletedChecker(threading.Thread):
         self.nresources = nresources
         self.rundirCheckPath = conf.watch_directory +'/run'+ str(nr).zfill(conf.run_number_padding)
         self.eorCheckPath = os.path.join(self.rundirCheckPath,'run' +  str(nr).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn')
-        self.url = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
-        self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
-        self.urlsearch = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_search?size=1'
+        self.url =       'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
+        self.urlclose =  'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
+        self.urlsearch = 'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_search?size=1'
         self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
 
 
@@ -679,9 +679,9 @@ if __name__ == "__main__":
     outputdir = sys.argv[2]
     runnumber = sys.argv[3]
     watchdir = conf.watch_directory
-    dt=os.path.getctime(dirname)
+    mainDir = os.path.join(watchdir,'run'+ runnumber.zfill(conf.run_number_padding))
+    dt=os.path.getctime(mainDir)
     startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
-    
     #EoR file path to watch for
 
     mainDir = dirname
