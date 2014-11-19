@@ -386,9 +386,16 @@ class system_monitor(threading.Thread):
                         dirstat = os.statvfs(conf.watch_directory)
                         fp=open(mfile,'w+')
                         fp.write('fm_date='+tstring+'\n')
-                        fp.write('idles='+str(len(os.listdir(idles)))+'\n')
-                        fp.write('used='+str(len(os.listdir(used)))+'\n')
-                        fp.write('broken='+str(len(os.listdir(broken)))+'\n')
+                        if cloud_mode:
+                            #lie about enabled cores if cloud mode enabled, even if still processing
+                            fp.write('idles=0\n')
+                            fp.write('used=0\n')
+                            fp.write('broken=0\n')
+                        else:
+                            fp.write('idles='+str(len(os.listdir(idles)))+'\n')
+                            fp.write('used='+str(len(os.listdir(used)))+'\n')
+                            fp.write('broken='+str(len(os.listdir(broken)))+'\n')
+
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
                         fp.write('cloud='+str(len(os.listdir(clouds)))+'\n')
                         fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
@@ -1127,8 +1134,20 @@ class Run:
 
     def Stop(self):
         #used to gracefully stop CMSSW and finish scripts
-        with open(os.path.join(self.dirname,"CMSSW_STOP"),'w') as f:
-          pass
+        with open(os.path.join(self.dirname,"temp_CMSSW_STOP"),'w') as f:
+          writedoc = {}
+          bu_lumis = []
+          try:
+            bu_eols_files = filter( lambda x: x.endswith("_EoLS.jsn"),os.listdir(rawinputdir))
+            bu_lumis = (sorted([int(x.split('_')[1][2:]) for x in bu_eols_files]))
+          except:
+            logging.error("Unable to parse BU EoLS files")
+          if len(bu_lumis): writedoc['lastLS']=bu_lumis[-1]
+          else  writedoc['lastLS']=2
+          json.dump(writedoc,f)
+        try:
+          os.rename(os.path.join(self.dirname,"temp_CMSSW_STOP"),os.path.join(self.dirname,"CMSSW_STOP"))
+        except:pass
         
 
     def Shutdown(self,herod=False):
@@ -1703,6 +1722,7 @@ class RunRanger:
                 resource_lock.release()
 
         elif dirname.startswith('include') and conf.role == 'fu':
+            #TODO: pick up latest working run..
             if cloud_mode==True:
                 while True:
                     resource_lock.acquire()

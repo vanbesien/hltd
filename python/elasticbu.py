@@ -676,7 +676,6 @@ if __name__ == "__main__":
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
         mr.register_inotify_path(monDir,monMask)
-        mr.register_inotify_path(outMonDir,outMonMask)
         mr.register_inotify_path(mainDir,mainMask)
 
         mr.start_inotify()
