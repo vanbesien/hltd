@@ -330,7 +330,7 @@ class CMSSWLogParser(threading.Thread):
     def __init__(self,path,pid,queue):
         threading.Thread.__init__(self)
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.es = ElasticSearch('http://localhost:9200')
+        self.es = ElasticSearch('http://'+conf.es_local+':9200')
         self.path = path
         self.pid = pid
         self.mainQueue = queue
@@ -501,7 +501,7 @@ class CMSSWLogESWriter(threading.Thread):
         #else:
         self.index_runstring = 'run'+str(self.rn).zfill(conf.run_number_padding)
         self.index_suffix = conf.elastic_cluster
-        self.eb = elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
+        self.eb = elasticBand('http://'+conf.es_local+':9200',self.index_runstring,self.index_suffix,0,0)
         self.contextualCounter = ContextualCounter()
         self.initialized=True 
 
