@@ -125,7 +125,7 @@ def cleanup_mountpoints(remount=True):
             except subprocess.CalledProcessError, err1:
                 logging.info("trying to kill users of ramdisk")
                 try:
-                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.ramdisk_subdirectory)])]
+                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.ramdisk_subdirectory)])
                 except subprocess.CalledProcessError, err2:
                     logging.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
                 try:
@@ -138,7 +138,7 @@ def cleanup_mountpoints(remount=True):
             except subprocess.CalledProcessError, err1:
                 logging.info("trying to kill users of output")
                 try:
-                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.output_subdirectory)])]
+                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.output_subdirectory)])
                 except subprocess.CalledProcessError, err2:
                     logging.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
                 try:
@@ -825,6 +825,9 @@ class Run:
                 logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
         self.rawinputdir = None
+        #
+        try:os.makedirs(conf.micromerge_output)
+        except:pass
         if conf.role == "bu":
             try:
                 self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)

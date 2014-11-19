@@ -179,6 +179,7 @@ Requires:elasticsearch >= 1.2.0, hltd >= 1.5.3, cx_Oracle >= 5.1.2, java-1.7.0-o
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py
+Provides:/opt/fff/instances.input
 Provides:/etc/init.d/fffmeta
 
 #Provides:/opt/fff/backup/elasticsearch.yml
@@ -203,6 +204,7 @@ mkdir -p opt/fff/esplugins
 mkdir -p opt/fff/backup
 mkdir -p etc/init.d/
 cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
+cp $BASEDIR/etc/instances.input %{buildroot}/opt/fff/instances.input
 echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
 echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
 
@@ -234,6 +236,7 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 %attr( 755 ,root, root) /opt/fff/setupmachine.py
 %attr( 755 ,root, root) /opt/fff/setupmachine.pyc
 %attr( 755 ,root, root) /opt/fff/setupmachine.pyo
+%attr( 755 ,root, root) /opt/fff/instances.input
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
 %attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1
@@ -271,7 +274,13 @@ chkconfig --add elasticsearch
 
 %triggerin -- hltd
 #echo "triggered on hltd update or install"
+if [ -f /etc/hltd.instances ]; then
+/sbin/service hltd stop all
+fi
+else
 /sbin/service hltd stop || true
+fi
+rm -rf /etc/hltd.instances
 python2.6 /opt/fff/setupmachine.py restore,hltd
 python2.6 /opt/fff/setupmachine.py hltd $params
 
@@ -288,7 +297,12 @@ fi
 #set up resources for hltd
 /opt/hltd/python/fillresources.py
 
-/sbin/service hltd restart
+if [ -f /etc/hltd.instances ]; then
+  /sbin/service hltd restart all
+else
+  /sbin/service hltd restart
+fi
+
 chkconfig --del hltd
 #chkconfig --del soap2file
 chkconfig --add hltd
@@ -305,7 +319,11 @@ if [ \$1 == 0 ]; then
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true
 
-  /sbin/service hltd stop || true
+  if [ -f /etc/hltd.instances ]; then
+    /sbin/service hltd stop all || true
+  else
+    /sbin/service hltd stop || true
+  fi
 
   python2.6 /opt/fff/setupmachine.py restore,hltd,elasticsearch
 fi

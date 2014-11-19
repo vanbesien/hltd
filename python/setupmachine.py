@@ -2,6 +2,7 @@
 
 import os,sys,socket
 import shutil
+import json
 
 import time
 
@@ -45,14 +46,6 @@ dqm_list = ["bu-c2f13-31-01","fu-c2f13-39-01","fu-c2f13-39-02",
 ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
            "fu-c2f13-41-03","fu-c2f13-41-04"]
 myhost = os.uname()[1]
-
-def countCPUs():
-    fp=open('/proc/cpuinfo','r')
-    resource_count = 0
-    for line in fp:
-        if line.startswith('processor'):
-            resource_count+=1
-    return resource_count
 
 def getmachinetype():
 
@@ -236,6 +229,17 @@ def getSelfDataAddr(parentTag):
             if r.startswith(os.uname()[1]+'.daq2'): return [r]
 
     return retval
+
+def getInstances(hostname):
+    #instance.input example:
+    #{"cmsdaq-401b28.cern.ch":{"names":["main","ecal"],"sizes":[40,20]}} #size is in megabytes
+    #BU can have multiple instances, FU should have only one specified. If none, any host is assumed to have only main instance
+    try:
+       with open('/opt/fff/instances.input','r') as fi:
+           doc = json.load('/opt/fff/instances.input')
+           return doc[hostname]['names'],doc[hostnames]['sizes']
+    except:
+        return ["main"],0
 
 
 class FileManager:
@@ -600,49 +604,80 @@ if __name__ == "__main__":
         f.writelines(getIPs(buDataAddr)[0])
         f.close()
 
+      #FU should have one instance assigned, BUs can have multiple
+      watch_dir_bu = '/fff/ramdisk'
+      out_dir_bu = '/fff/output'
+      log_dir_bu = '/var/log/hltd'
+
+      instances,sizes=getInstances(os.uname()[1])
+      if len(instances)==0: instances=['main']
+
       hltdEdited = checkModifiedConfigInFile(hltdconf)
       #print "was modified?",hltdEdited
       if hltdEdited == False:
         shutil.copy(hltdconf,os.path.join(backup_dir,os.path.basename(hltdconf)))
-      hltdcfg = FileManager(hltdconf,'=',hltdEdited,' ',' ')
 
-      hltdcfg.reg('enabled','True','[General]')
       if type=='bu':
+
+        #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
+        try:
+            subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
+            subprocess.check_call(['rm','-rf','/fff/ramdisk/{run*,*.img}'])
+        except subprocess.CalledProcessError, err1:
+            logging.fatal('failed to cleanup ramdisk')
+
+        for idx, instance in enumerate(instances):
+
+          watch_dir_bu = '/fff/ramdisk'
+          out_dir_bu = '/fff/output'
+          log_dir_bu = '/var/log/hltd'
+
+          cfile = hltdconf
+          if instance != 'main':
+            cfile = '/etc/hltd-'+instance+'.conf' 
+            shutil.copy(hltdconf,cfile)
+            watch_dir_bu = os.path.join(watch_dir_bu,instance)
+            out_dir_bu = os.path.join(out_dir_bu,instance)
+            log_dir_bu = os.path.join(log_dir_bu,instance)
+
+            #run loopback setup for non-main instances
+            try:
+                subprocess.check_call(['/opt/hltd/scripts/scripts/makeloopfs.sh','/fff/ramdisk',instance, sizes[idx]])
+            except subprocess.CalledProcessError, err1:
+                logging.fatal('failed to configure loopback device mount in ramdisk')
+            
+          hltdcfg = FileManager(cfile,'=',hltdEdited,' ',' ')
+
+          hltdcfg.reg('enabled','True','[General]')
       
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
+          hltdcfg.reg('instance',instance,'[General]')
           hltdcfg.reg('cgi_port','9000','[Web]')
-          hltdcfg.reg('watch_directory','/fff/ramdisk','[General]')
+          hltdcfg.reg('watch_directory',watch_dir_bu,'[General]')
           hltdcfg.reg('role','bu','[General]')
-          hltdcfg.reg('micromerge_output','/fff/output','[General]')
+          hltdcfg.reg('micromerge_output',out_dir_bu,'[General]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('use_elasticsearch',use_elasticsearch,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
           hltdcfg.reg('dqm_machine',dqmmachine,'[DQM]')
-          #hltdcfg.removeEntry('watch_directory')
+          hltdcfg.reg('log_dir',log_dir_bu,'[Logs]')
           hltdcfg.commit()
-          #remove /fff/data from BU (hack)
-          try:
-              shutil.rmtree('/fff/data')
-          except:
-              pass
 
       if type=='fu':
+          hltdcfg = FileManager(hltdconf,'=',hltdEdited,' ',' ')
 
-          #max_cores_done = False
-          #do_max_cores = True
-          #num_max_cores = countCPUs()
+          #FU can only have one instance (so we take instance[0] and ignore others)
+          hltdcfg.reg('instance',instances[0],'[General]')
+          if instances!=['main']:
+              hltdcfg.reg('micromerge_output',os.path.join('/fff/BU0/output',instances[0]),'[General]')
 
-          #num_threads_done = False
-          #do_num_threads = True
-          #num_threads = nthreads 
           hltdcfg.reg('exec_directory',execdir,'[General]') 
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('watch_directory','/fff/data','[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cgi_port','9000','[Web]')
-          #hltdcfg.reg('mount_options_output','rw,vers=4,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
@@ -654,6 +689,5 @@ if __name__ == "__main__":
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.reg('cmssw_streams',nfwkstreams,'[CMSSW]')
           hltdcfg.reg('resource_use_fraction',resourcefract,'[Resources]')
-          #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
 

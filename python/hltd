@@ -15,11 +15,23 @@ import syslog
 
 if __name__ == "__main__":
 
-    if len(sys.argv) <=2 or sys.argv[2]=="main":
-        instance = "main"
-    else:
-        instance = sys.argv[2]
+  if len(sys.argv) <=2 or sys.argv[2]=="main":
+      instances = ["main"]
+  elif sys.argv[2]=="all":
+      try:
+          instances=[]
+          with open('/etc/hltd.instances','r') as fi:
+            for line in fi.readlines():
+              lnstrip = line.strip(' \n')
+              if len(lnstrip)>0 and lnstrip.startswith("#")==False:
+              instances.append(lnstrip)
+      except:
+          instances = ["main"]
+  else:
+      instances = [sys.argv[2]]
 
+  for instance in instances:  
+    print "handling instance",instance
     daemon = hltd(instance)
 
     if len(sys.argv) >= 2:
@@ -97,5 +109,5 @@ if __name__ == "__main__":
         sys.exit(0)
 
     else:
-        print "usage: %s start|stop|stop-light|restart|status" % sys.argv[0]
+        print "usage: %s start|stop|stop-light|restart|status |all|main|instance" % sys.argv[0]
         sys.exit(2)

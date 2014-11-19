@@ -21,7 +21,7 @@ if [ -n "$1" ]; then
       if [ $? != 0 ]; then
         echo "Unsuccessful umount of ${mountpoint}"
 
-        killpid=`lsof /dev/shm/myruns/img2 | awk -v N=$2 '{print $2}' | grep -v PID`
+        killpid=`lsof $mountpoint | awk -v N=$2 '{print $2}' | grep -v PID`
         echo "used by: $killpid. Trying to kill these processes."
         myarr=($killpid)
         for i in "${myarr[@]}"
