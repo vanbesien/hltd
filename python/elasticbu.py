@@ -177,6 +177,21 @@ class elasticBandBU:
         basename = infile.basename
         self.logger.debug(basename)
         current_time = time.time()
+        black_list=[]
+
+        #check box file against blacklist
+        try:
+           with open(os.path.join(conf.watch_directory,'appliance','blacklist'),"r") as fi:
+               try:
+                   black_list = json.load(fi)
+               except ValueError:
+                   #file is being written or corrupted
+                   return
+        except:
+            #blacklist is not present, do not filter
+            pass
+        if basename in black_list:return
+
         if basename.startswith('fu'):
             try:
                 self.boxinfoFUMap[basename] = [infile.data,current_time]
@@ -198,21 +213,26 @@ class elasticBandBU:
                 document['used']=0
                 document['broken']=0
                 document['quarantined']=0
+                document['cloud']=0
                 document['usedDataDir']=0
                 document['totalDataDir']=0
                 document['hosts']=[basename]
+                document['blacklistedHosts']=[]
                 for key in self.boxinfoFUMap:
-                        dpair = self.boxinfoFUMap[key]
-                        d = dpair[0]
-                        #check if entry is not older than 10 seconds
-                        if current_time - dpair[1] > 10:continue
-                        document['idles']+=int(d['idles'])
-                        document['used']+=int(d['used'])
-                        document['broken']+=int(d['broken'])
-                        document['quarantined']+=int(d['quarantined'])
-                        document['usedDataDir']+=int(d['usedDataDir'])
-                        document['totalDataDir']+=int(d['totalDataDir'])
-                        document['hosts'].append(key)
+                    dpair = self.boxinfoFUMap[key]
+                    d = dpair[0]
+                    #check if entry is not older than 10 seconds
+                    if current_time - dpair[1] > 10:continue
+                    document['idles']+=int(d['idles'])
+                    document['used']+=int(d['used'])
+                    document['broken']+=int(d['broken'])
+                    document['quarantined']+=int(d['quarantined'])
+                    document['cloud']+=int(d['cloud'])
+                    document['usedDataDir']+=int(d['usedDataDir'])
+                    document['totalDataDir']+=int(d['totalDataDir'])
+                    document['hosts'].append(key)
+                for blacklistedHost in black_list:
+                    document['blacklistedHosts'].append(blacklistedHost)
                 self.index_documents('boxinfo_appliance',[document],bulk=False)
             except Exception as ex:
                 #in case of malformed box info
@@ -465,9 +485,9 @@ class RunCompletedChecker(threading.Thread):
         self.nresources = nresources
         self.rundirCheckPath = conf.watch_directory +'/run'+ str(nr).zfill(conf.run_number_padding)
         self.eorCheckPath = os.path.join(self.rundirCheckPath,'run' +  str(nr).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn')
-        self.url = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
-        self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
-        self.urlsearch = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_search?size=1'
+        self.url =       'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
+        self.urlclose =  'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
+        self.urlsearch = 'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_search?size=1'
         self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
 
 
@@ -631,10 +651,9 @@ if __name__ == "__main__":
 
     runnumber = sys.argv[1]
     watchdir = conf.watch_directory
+    mainDir = os.path.join(watchdir,'run'+ runnumber.zfill(conf.run_number_padding))
     dt=os.path.getctime(mainDir)
     startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
-    
-    mainDir = os.path.join(watchdir,'run'+ runnumber.zfill(conf.run_number_padding))
     #EoR file path to watch for
 
     mainMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO

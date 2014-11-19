@@ -36,9 +36,9 @@ mkdir -p etc/init.d
 mkdir -p etc/logrotate.d
 mkdir -p etc/appliance/resources/idle
 mkdir -p etc/appliance/resources/online
-mkdir -p etc/appliance/resources/offline
 mkdir -p etc/appliance/resources/except
 mkdir -p etc/appliance/resources/quarantined
+mkdir -p etc/appliance/resources/cloud
 mkdir -p usr/lib64/python2.6/site-packages
 mkdir -p usr/lib64/python2.6/site-packages/pyelasticsearch
 ls
@@ -53,9 +53,9 @@ ls opt/hltd
 echo "Creating DQM directories"
 mkdir -p etc/appliance/dqm_resources/idle
 mkdir -p etc/appliance/dqm_resources/online
-mkdir -p etc/appliance/dqm_resources/offline
 mkdir -p etc/appliance/dqm_resources/except
 mkdir -p etc/appliance/dqm_resources/quarantined
+mkdir -p etc/appliance/dqm_resources/cloud
 
 cd $TOPDIR
 #pyelasticsearch
@@ -192,11 +192,7 @@ tar -C $TOPDIR -c usr | tar -xC \$RPM_BUILD_ROOT
 rm \$RPM_BUILD_ROOT/opt/hltd/python/setupmachine.py
 rm \$RPM_BUILD_ROOT/opt/hltd/rpm/*.rpm
 %post
-rm -rf /etc/appliance/online/*
-rm -rf /etc/appliance/offline/*
-rm -rf /etc/appliance/except/*
 #/opt/hltd/python/fillresources.py #--> in fffmeta
-#/sbin/service hltd restart #restart delegated to fffmeta!
 %files
 %dir %attr(777, -, -) /var/log/hltd
 %dir %attr(777, -, -) /var/log/hltd/pid
