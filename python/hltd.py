@@ -277,7 +277,6 @@ class system_monitor(threading.Thread):
 
     def rehash(self):
         if conf.role == 'fu':
-            #@SM:subdir
             self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list_ramdisk_instance]
         else:
             self.directory = [conf.watch_directory+'/appliance/boxes/']
@@ -383,7 +382,6 @@ class BUEmu:
         configtouse = conf.test_bu_config
         destination_base = None
         if role == 'fu':
-            #@SM:subdir
             destination_base = bu_disk_list_ramdisk_instance[startindex%len(bu_disk_list_ramdisk_instance)]
         else:
             destination_base = conf.watch_directory
@@ -826,22 +824,20 @@ class Run:
 
         self.rawinputdir = None
         #
-        try:os.makedirs(conf.micromerge_output)
-        except:pass
         if conf.role == "bu":
             try:
+                try:os.makedirs(conf.micromerge_output)
+                except:pass
                 self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
                 self.buoutputdir = conf.micromerge_output+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
                 os.mkdir(self.rawinputdir+'/mon')
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
-            #@SM:subdir
             self.rawinputdir= os.path.join(bu_disk_list_ramdisk_instance[0],'run' + str(self.runnumber).zfill(conf.run_number_padding))
 
         self.lock = threading.Lock()
-        #conf.use_elasticsearch = False
-            #note: start elastic.py first!
+
         if conf.use_elasticsearch == True:
             try:
                 if conf.role == "bu":
@@ -1058,7 +1054,7 @@ class Run:
                         try:
                             os.rename(used+cpu,idles+cpu)
                         except OSError:
-                            #@SM:happens if t was quarantined
+                            #@SM:happens if it was quarantined
                             logging.warning('Unable to find resource file '+used+cpu+'.')
                         except Exception as ex:
                             resource_lock.release()
@@ -1300,7 +1296,6 @@ class RunRanger:
                 try:
                     logging.info('new run '+str(nr))
                     if conf.role == 'fu':
-                        #@SM:subdir
                         bu_dir = bu_disk_list_ramdisk_instance[0]+'/'+dirname
                         try:
                             os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')

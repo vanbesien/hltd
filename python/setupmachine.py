@@ -656,7 +656,7 @@ if __name__ == "__main__":
           hltdcfg.reg('cgi_port','9000','[Web]')
           hltdcfg.reg('watch_directory',watch_dir_bu,'[General]')
           hltdcfg.reg('role','bu','[General]')
-          hltdcfg.reg('micromerge_output',out_dir_bu,'[General]')
+          #hltdcfg.reg('micromerge_output',out_dir_bu,'[General]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('use_elasticsearch',use_elasticsearch,'[Monitoring]')
@@ -670,8 +670,8 @@ if __name__ == "__main__":
 
           #FU can only have one instance (so we take instance[0] and ignore others)
           hltdcfg.reg('instance',instances[0],'[General]')
-          if instances!=['main']:
-              hltdcfg.reg('micromerge_output',os.path.join('/fff/BU0/output',instances[0]),'[General]')
+          #if instances!=['main']:
+          #    hltdcfg.reg('micromerge_output',os.path.join('/fff/BU0/output',instances[0]),'[General]')
 
           hltdcfg.reg('exec_directory',execdir,'[General]') 
           hltdcfg.reg('user',username,'[General]')
