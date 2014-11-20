@@ -163,10 +163,10 @@ if __name__ == "__main__":
     dirname = sys.argv[1]
     inmondir = sys.argv[2]
     expected_processes = int(sys.argv[3])
-    indexSuffix = sys.argv[4]
+    indexSuffix = conf.elastic_cluster
     update_modulo=conf.fastmon_insert_modulo
     dirname = os.path.basename(os.path.normpath(dirname))
-    watchDir = os.path.join(conf.watch_directory,dirname)
+    watchDir = os.path.join(conf.watch_directory,dirname)#???
     outputDir = conf.micromerge_output
     monDir = os.path.join(watchDir,"mon")
     tempDir = os.path.join(watchDir,ES_DIR_NAME)

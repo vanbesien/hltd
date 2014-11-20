@@ -463,11 +463,13 @@ class RunCompletedChecker(threading.Thread):
         self.mode = mode
         self.nr = nr
         self.nresources = nresources
-        self.rundirCheckPath = conf.watch_directory +'/run'+ str(nr).zfill(conf.run_number_padding)
+        rundir = 'run'+ str(nr).zfill(conf.run_number_padding)
+        self.rundirCheckPath = os.path.join(conf.watch_directory, runname)
         self.eorCheckPath = os.path.join(self.rundirCheckPath,'run' +  str(nr).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn')
-        self.url =       'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
-        self.urlclose =  'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
-        self.urlsearch = 'http://'+conf.es_local+':9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_search?size=1'
+        self.indexPrefix = 'run'+str(nr).zfill(conf.run_number_padding) + '_' + conf.elastic_cluster
+        self.url =       'http://'+conf.es_local+':9200/' + self.indexPrefix + '*/fu-complete/_count'
+        self.urlclose =  'http://'+conf.es_local+':9200/' + self.indexPrefix + '*/_close'
+        self.urlsearch = 'http://'+conf.es_local+':9200/' + self.indexPrefix + '*/fu-complete/_search?size=1'
         self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
 
 
@@ -484,7 +486,6 @@ class RunCompletedChecker(threading.Thread):
 
 
     def checkBoxes(self,dir):
-
 
         files = os.listdir(dir)
         endAllowed=True
@@ -578,15 +579,6 @@ class RunCompletedChecker(threading.Thread):
                             pass 
                         except Exception as ex:
                             self.logger.exception(ex)
-                        try:
-                            if conf.close_es_index==True:
-                                #wait a bit for central ES queries to complete
-                                time.sleep(10)
-                                resp = requests.post(self.urlclose,timeout=5)
-                                self.logger.info('closed appliance ES index for run '+str(self.nr))
-                        except Exception as exc:
-                            self.logger.error('Error in run completition check')
-                            self.logger.exception(exc)
                         check_es_complete=False
                         continue
                     else:
@@ -602,7 +594,17 @@ class RunCompletedChecker(threading.Thread):
                     check_es_complete=False
 
             #exit if both checks are complete
-            if check_boxes==False and check_es_complete==False:break
+            if check_boxes==False and check_es_complete==False:
+                try:
+                    if conf.close_es_index==True:
+                        #wait a bit for queries to complete
+                        time.sleep(10)
+                        resp = requests.post(self.urlclose,timeout=5)
+                        self.logger.info('closed appliance ES index for run '+str(self.nr))
+                except Exception as exc:
+                    self.logger.error('Error in closing run index')
+                    self.logger.exception(exc)
+                break
             #check every 10 seconds
             self.threadEvent.wait(10)
 
@@ -613,7 +615,6 @@ class RunCompletedChecker(threading.Thread):
     def stop(self):
         self.stop = True
         self.threadEvent.set() 
-
 
 
 if __name__ == "__main__":

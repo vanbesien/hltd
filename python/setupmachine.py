@@ -612,6 +612,7 @@ if __name__ == "__main__":
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('cgi_port','9000','[Web]')
+          hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('watch_directory','/fff/ramdisk','[General]')
           hltdcfg.reg('role','bu','[General]')
           hltdcfg.reg('micromerge_output','/fff/output','[General]')
