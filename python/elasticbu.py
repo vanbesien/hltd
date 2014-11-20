@@ -300,13 +300,17 @@ class elasticCollectorBU():
 		    self.infile = fileHandler(event.fullpath)
 		    self.emptyQueue.clear()
 		    if self.infile.filetype==EOR:
-			try:
-			    if self.es:
-			        dt=os.path.getctime(self.infile.fullpath)
-			        endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
-			        self.es.elasticize_runend_time(endtime)
-			except:pass
-			break
+                        if self.es:
+                            try:
+                                dt=os.path.getctime(event.fullpath)
+                                endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
+                                self.es.elasticize_runend_time(endtime)
+                            except Exception as ex:
+                                self.logger.warning(str(ex))
+                                dt = datetime.datetime.now()
+                                endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
+                                self.es.elasticize_runend_time(endtime)
+                        break
                     self.process()
                 except (KeyboardInterrupt,Queue.Empty) as e:
                     self.emptyQueue.set()
@@ -319,9 +323,14 @@ class elasticCollectorBU():
             #check for run directory file every 5 loops
             count+=1
             if (count%5) == 0:
+                #if run dir deleted
                 if os.path.exists(self.inRunDir)==False:
                     self.logger.info("Exiting because run directory in has disappeared")
-                    #run dir deleted
+                    if self.es:
+                        #write end timestamp in case EoR file was not seen
+                        dt = datetime.datetime.now()
+                        endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
+                        self.es.elasticize_runend_time(endtime)
                     break
 	self.logger.info("Stop main loop (watching directory " + str(self.inRunDir) + ")")
 

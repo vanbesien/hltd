@@ -196,7 +196,7 @@ if __name__ == "__main__":
         mr.register_inotify_path(tempDir,tempMask)
         mr.start_inotify()
 
-        es = elasticBand.elasticBand('http://'+conf.es_local'+:9200',dirname,indexSuffix,expected_processes,update_modulo)
+        es = elasticBand.elasticBand('http://'+conf.es_local+':9200',dirname,indexSuffix,expected_processes,update_modulo)
 
         #starting elasticCollector thread
         ec = elasticCollector(ES_DIR_NAME,inmondir)
