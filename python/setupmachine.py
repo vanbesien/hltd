@@ -50,7 +50,7 @@ myhost = os.uname()[1]
 def getmachinetype():
 
     #print "running on host ",myhost
-    if   myhost.startswith('dvrubu-') : return 'daq2val','fu'
+    if   myhost.startswith('dvrubu-') or myhost.startswith('dvfu-') : return 'daq2val','fu'
     elif myhost.startswith('dvbu-') : return 'daq2val','bu'
     elif myhost.startswith('bu-') : return 'daq2','bu'
     elif myhost.startswith('fu-') : return 'daq2','fu'
@@ -125,9 +125,6 @@ def getBUAddr(parentTag,hostname):
         else:
             con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@int2r2-v.cern.ch:10121/int2r_lb.cern.ch',
                           cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
-            #hardcoded daq2val (until/if it switches to new DB)
-            #if hostname.startswith('dvrubu-c2f34'):return ['dvbu-c2f34-30-01.dvfus1v0.cms']
-            #if hostname.startswith('dvrubu-c2f33'):return ['dvbu-c2f34-28-01.dvfus1v0.cms']
     
     #print con.version
 
