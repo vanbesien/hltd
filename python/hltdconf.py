@@ -36,7 +36,8 @@ class hltdConf:
         self.soap2file_port = int(self.soap2file_port)
 
         self.conf.instance_same_destination = False
-        try:self.instance_same_destination = True if self.instance_same_destination=="True"
+        try:
+          self.instance_same_destination=bool(self.instance_same_destination=="True")
         except:pass
 
         self.dqm_machine = bool(self.dqm_machine=="True")
