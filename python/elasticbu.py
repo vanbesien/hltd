@@ -307,8 +307,7 @@ class elasticCollectorBU():
                                 self.es.elasticize_runend_time(endtime)
                             except Exception as ex:
                                 self.logger.warning(str(ex))
-                                dt = datetime.datetime.now()
-                                endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
+                                endtime = datetime.datetime.utcnow().isoformat()
                                 self.es.elasticize_runend_time(endtime)
                         break
                     self.process()
@@ -328,8 +327,7 @@ class elasticCollectorBU():
                     self.logger.info("Exiting because run directory in has disappeared")
                     if self.es:
                         #write end timestamp in case EoR file was not seen
-                        dt = datetime.datetime.now()
-                        endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
+                        endtime = datetime.datetime.utcnow().isoformat()
                         self.es.elasticize_runend_time(endtime)
                     break
 	self.logger.info("Stop main loop (watching directory " + str(self.inRunDir) + ")")
