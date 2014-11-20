@@ -315,7 +315,7 @@ def updateBlacklist(parseOnly=False):
         #TODO:have mandatory check in blacklist DB
         try:
             forceUpdate=False
-            with open(os.path.join(conf.watch_directory,'appliance','blacklist','r') as fi:
+            with open(os.path.join(conf.watch_directory,'appliance','blacklist','r')) as fi:
                 active_black_list = json.load(fi)
         except:
             forceUpdate=True
@@ -1005,7 +1005,7 @@ class Run:
         #self.lock.acquire()
 
         update_success,black_list=updateBlacklist()
-        if update_success=False:
+        if update_success==False:
             logging.fatal("unable to check blacklist: giving up on run start")
             return False
 
@@ -1143,7 +1143,7 @@ class Run:
           except:
             logging.error("Unable to parse BU EoLS files")
           if len(bu_lumis): writedoc['lastLS']=bu_lumis[-1]
-          else  writedoc['lastLS']=2
+          else:  writedoc['lastLS']=2
           json.dump(writedoc,f)
         try:
           os.rename(os.path.join(self.dirname,"temp_CMSSW_STOP"),os.path.join(self.dirname,"CMSSW_STOP"))
@@ -1280,6 +1280,7 @@ class Run:
 
     def WaitForEnd(self):
         logging.info("wait for end thread!")
+        global cloud_mode
         try:
             for resource in self.online_resource_list:
                 resource.disableRestart()
@@ -1328,16 +1329,15 @@ class Run:
                     active_runs.remove(run_num)
             logging.info("new active runs.."+str(active_runs))
 
-        global cloud_mode
-        if cloud_mode==True:
-           resource_lock.acquire()
-            if len(active_runs)>1:
-                logging.info("VM mode: waiting for runs: "+str(active_runs)+" to finish")
-            else:
-                #give resources to cloud and bail out
-                move_resources_to_cloud()
-                entering_cloud_mode=False 
-           resource_lock.release()
+            if cloud_mode==True:
+                resource_lock.acquire()
+                if len(active_runs)>1:
+                    logging.info("VM mode: waiting for runs: "+str(active_runs)+" to finish")
+                else:
+                    #give resources to cloud and bail out
+                    move_resources_to_cloud()
+                    entering_cloud_mode=False 
+                resource_lock.release()
 
         except Exception as ex:
             resource_lock.release()
@@ -1427,6 +1427,7 @@ class RunRanger:
     def process_IN_CREATE(self, event):
         nr=0
         global run_list
+        global cloud_mode
         logging.info('RunRanger: event '+event.fullpath)
         dirname=event.fullpath[event.fullpath.rfind("/")+1:]
         logging.info('RunRanger: new filename '+dirname)
@@ -1708,7 +1709,6 @@ class RunRanger:
         elif dirname.startswith('exclude') and conf.role == 'fu':
             #service on this machine is asked to be excluded for cloud use
             logging.info('machine exclude initiated')
-            global cloud_mode
             resource_lock.acquire()
             cloud_mode=True
             entering_cloud_mode=True
@@ -1905,7 +1905,7 @@ class ResourceRanger:
         if conf.role=='fu':return
         if basename == os.uname()[1]:return
         if basename == 'blacklist':
-                with open(os.path.join(conf.watch_directory,'appliance','blacklist','r') as fi:
+                with open(os.path.join(conf.watch_directory,'appliance','blacklist','r')) as fi:
                     machine_blacklist = json.load(fi)
                 #TODO:cases where blacklist is missing should be handled!
         resourcepath=event.fullpath[0:event.fullpath.rfind("/")]
