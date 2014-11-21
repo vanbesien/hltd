@@ -630,11 +630,11 @@ if __name__ == "__main__":
             print 'failed to cleanup ramdisk',ex
  
         cgibase=9000
-        for idx in enumerate(instances):
-          if idx!=0 and instances[idx]=='main':
-            tmp = instances[0]
-            instances[0]=instances[idx]
-            instances[idx]=tmp
+        for idx,val in enumerate(instances):
+          if idx!=0 and val=='main':
+            instances[idx]=instances[0]
+            instances[0]=val
+            break
         for idx, instance in enumerate(instances):
 
           watch_dir_bu = '/fff/ramdisk'

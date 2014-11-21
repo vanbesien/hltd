@@ -955,7 +955,7 @@ if __name__ == "__main__":
     conf=initConf(sys.argv[1])
 
     logging.basicConfig(filename=os.path.join(conf.log_dir,"logcollector.log"),
-                    level=logging.INFO,
+                    level=conf.service_log_level,
                     format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
@@ -991,9 +991,10 @@ if __name__ == "__main__":
     threadEvent = threading.Event()
     registerSignal(threadEvent)
 
-    hltdlogdir = '/var/log/hltd'
+    hltdlogdir = conf.log_dir
     hltdlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
-    cmsswlogdir = '/var/log/hltd/pid'
+    cmsswlogdir = os.path.join(conf.log_dir,'pid')
+
 
     mask = inotify.IN_CREATE
     logger.info("starting CMSSW log collector for "+cmsswlogdir)

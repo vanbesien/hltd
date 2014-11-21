@@ -56,6 +56,7 @@ boxinfoFUMap = {}
 def setFromConf(myinstance):
 
     global conf
+    global logger
     conf=initConf(myinstance)
 
     idles = conf.resource_base+'/idle/'
@@ -65,13 +66,17 @@ def setFromConf(myinstance):
     cloud = conf.resource_base+'/cloud/'
 
     #prepare log directory
-    if not os.path.exists(conf.log_dir): os.makedirs(conf.log_dir)
+    if myinstance!='main':
+        if not os.path.exists(conf.log_dir): os.makedirs(conf.log_dir)
+        if not os.path.exists(os.path.join(conf.log_dir,'pid')): os.makedirs(os.path.join(conf.log_dir,'pid'))
+        os.chmod(conf.log_dir,0777)
+        os.chmod(os.path.join(conf.log_dir,'pid'),0777)
 
     logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
                     format='%(levelname)s:%(asctime)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
-
+    logger = logging.getLogger(os.path.basename(__file__))
     conf.dump()
 
 
@@ -155,35 +160,35 @@ def cleanup_mountpoints(remount=True):
         out = process.communicate()[0]
         mounts = re.findall('/'+conf.bu_base_dir+'[0-9]+',out)
         mounts = list(set(mounts))
-        logging.info("cleanup_mountpoints: found following mount points: ")
-        logging.info(mounts)
+        logger.info("cleanup_mountpoints: found following mount points: ")
+        logger.info(mounts)
         umount_failure=False
         for point in mounts:
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
             except subprocess.CalledProcessError, err1:
-                logging.info("trying to kill users of ramdisk")
+                logger.info("trying to kill users of ramdisk")
                 try:
                     subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.ramdisk_subdirectory)])
                 except subprocess.CalledProcessError, err2:
-                    logging.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
+                    logger.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
                 try:
                     subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
                 except subprocess.CalledProcessError, err2:
-                    logging.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
+                    logger.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
                     umount_failure=True
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.output_subdirectory)])
             except subprocess.CalledProcessError, err1:
-                logging.info("trying to kill users of output")
+                logger.info("trying to kill users of output")
                 try:
                     subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.output_subdirectory)])
                 except subprocess.CalledProcessError, err2:
-                    logging.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
+                    logger.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
                 try:
                     subprocess.check_call(['umount',os.path.join('/'+point,conf.output_subdirectory)])
                 except subprocess.CalledProcessError, err2:
-                    logging.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
+                    logger.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
                     umount_failure=True
  
             #this will remove directories only if they are empty (as unmounted mount point should be)
@@ -191,12 +196,12 @@ def cleanup_mountpoints(remount=True):
                 if os.path.join('/'+point,conf.ramdisk_subdirectory)!='/':
 	            os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
             except Exception as ex:
-                logging.exception(ex)
+                logger.exception(ex)
             try:
                 if os.path.join('/'+point,conf.output_subdirectory)!='/':
                     os.rmdir(os.path.join('/'+point,conf.output_subdirectory))
             except Exception as ex:
-                logging.exception(ex)
+                logger.exception(ex)
         if remount==False:
             if umount_failure:return False
             return True
@@ -204,7 +209,7 @@ def cleanup_mountpoints(remount=True):
         bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
         if os.path.exists(bus_config):
             for line in open(bus_config):
-                logging.info("found BU to mount at "+line.strip())
+                logger.info("found BU to mount at "+line.strip())
                 try:
                     os.makedirs(os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                 except OSError:
@@ -222,16 +227,16 @@ def cleanup_mountpoints(remount=True):
                         break
                     else:
                         p_end = datetime.datetime.now()
-                        logging.warn('unable to ping '+line.strip())
+                        logger.warn('unable to ping '+line.strip())
                         dt = p_end - p_begin
                         if dt.seconds < 10:
                             time.sleep(10-dt.seconds)
                     attemptsLeft-=1
                 if attemptsLeft==0:
-                    logging.fatal('hltd was unable to ping BU '+line.strip())
+                    logger.fatal('hltd was unable to ping BU '+line.strip())
                     sys.exit(1)
                 else:
-                    logging.info("trying to mount "+line.strip()+':/fff/'+conf.ramdisk_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
+                    logger.info("trying to mount "+line.strip()+':/fff/'+conf.ramdisk_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                     try:
                         subprocess.check_call(
                             [conf.mount_command,
@@ -249,11 +254,11 @@ def cleanup_mountpoints(remount=True):
                         else:
                             bu_disk_list_ramdisk_instance.append(os.path.join(toappend,conf.instance))
                     except subprocess.CalledProcessError, err2:
-                        logging.exception(err2)
-                        logging.fatal("Unable to mount ramdisk - exiting.")
+                        logger.exception(err2)
+                        logger.fatal("Unable to mount ramdisk - exiting.")
                         sys.exit(1)
 
-                    logging.info("trying to mount "+line.strip()+':/fff/'+conf.output_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
+                    logger.info("trying to mount "+line.strip()+':/fff/'+conf.output_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
                     try:
                         subprocess.check_call(
                             [conf.mount_command,
@@ -271,8 +276,8 @@ def cleanup_mountpoints(remount=True):
                         else:
                             bu_disk_list_output_instance.append(os.path.join(toappend,conf.instance))
                     except subprocess.CalledProcessError, err2:
-                        logging.exception(err2)
-                        logging.fatal("Unable to mount output - exiting.")
+                        logger.exception(err2)
+                        logger.fatal("Unable to mount output - exiting.")
                         sys.exit(1)
 
                 i+=1
@@ -281,10 +286,10 @@ def cleanup_mountpoints(remount=True):
             if remount==True:os.unlink(conf.watch_directory+'/suspend')
         except:pass
     except Exception as ex:
-        logging.error("Exception in cleanup_mountpoints")
-        logging.exception(ex)
+        logger.error("Exception in cleanup_mountpoints")
+        logger.exception(ex)
         if remount==True:
-            logging.fatal("Unable to handle (un)mounting")
+            logger.fatal("Unable to handle (un)mounting")
             return False
         else:return False
 
@@ -297,7 +302,7 @@ def calculate_threadnumber():
         nthreads = idlecount/conf.cmssw_threads_autosplit
         nstreams = idlecount/conf.cmssw_threads_autosplit
         if nthreads*conf.cmssw_threads_autosplit != nthreads:
-            logging.error("idle cores can not be evenly split to cmssw threads")
+            logger.error("idle cores can not be evenly split to cmssw threads")
     else:
         nthreads = conf.cmssw_threads
         nstreams = conf.cmssw_threads
@@ -313,9 +318,9 @@ def updateBlacklist(parseOnly=False):
                 try:
                     static_black_list = json.load(fi)
                     black_list+=static_black_list
-                    logging.info("found these resources in /etc/appliance/blacklist:"+str(black_list))
+                    logger.info("found these resources in /etc/appliance/blacklist:"+str(black_list))
                 except ValueError:
-                    logging.error("error parsing /etc/appliance/blacklist")
+                    logger.error("error parsing /etc/appliance/blacklist")
         except:
             #no blacklist file, this is ok
             pass
@@ -357,19 +362,19 @@ class system_monitor(threading.Thread):
                 os.makedirs(dir)
             except OSError:
                 pass
-        logging.info("system_monitor: rehash found the following BU disks")
+        logger.info("system_monitor: rehash found the following BU disks")
         for disk in self.file:
-            logging.info(disk)
+            logger.info(disk)
 
     def run(self):
         try:
-            logging.debug('entered system monitor thread ')
+            logger.debug('entered system monitor thread ')
             global suspended
             res_path_temp = os.path.join(conf.watch_directory,'appliance','resource_summary_temp')
             res_path = os.path.join(conf.watch_directory,'appliance','resource_summary')
             selfhost = os.uname()[1]
             while self.running:
-#                logging.info('system monitor - running '+str(self.running))
+#                logger.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
                 if suspended:continue
                 tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
@@ -453,7 +458,7 @@ class system_monitor(threading.Thread):
                     json.dump(stat,fp)
                     fp.close()
         except Exception as ex:
-            logging.error(ex)
+            logger.error(ex)
 
         for mfile in self.file:
             try:
@@ -461,10 +466,10 @@ class system_monitor(threading.Thread):
             except OSError:
                 pass
 
-        logging.debug('exiting system monitor thread ')
+        logger.debug('exiting system monitor thread ')
 
     def stop(self):
-        logging.debug("system_monitor: request to stop")
+        logger.debug("system_monitor: request to stop")
         self.running = False
         self.threadEvent.set()
 
@@ -475,7 +480,7 @@ class BUEmu:
 
     def startNewRun(self,nr):
         if self.runnumber:
-            logging.error("Another BU emulator run "+str(self.runnumber)+" is already ongoing")
+            logger.error("Another BU emulator run "+str(self.runnumber)+" is already ongoing")
             return
         self.runnumber = nr
         configtouse = conf.test_bu_config
@@ -510,8 +515,8 @@ class BUEmu:
                                             close_fds=True
                                             )
         except Exception as ex:
-            logging.error("Error in forking BU emulator process")
-            logging.error(ex)
+            logger.error("Error in forking BU emulator process")
+            logger.error(ex)
 
     def stop(self):
         os.kill(self.process.pid,SIGINT)
@@ -541,18 +546,18 @@ class OnlineResource:
 
     def NotifyNewRun(self,runnumber):
         self.runnumber = runnumber
-        logging.info("calling start of run on "+self.cpu[0]);
+        logger.info("calling start of run on "+self.cpu[0]);
         try:
             connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port - conf.cgi_instance_port_offset)
             connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
             response = connection.getresponse()
             #do something intelligent with the response code
-            logging.error("response was "+str(response.status))
+            logger.error("response was "+str(response.status))
             if response.status > 300: self.hoststate = 1
             else:
-                logging.info(response.read())
+                logger.info(response.read())
         except Exception as ex:
-            logging.exception(ex)
+            logger.exception(ex)
 
     def NotifyShutdown(self):
         try:
@@ -564,10 +569,10 @@ class OnlineResource:
             #do something intelligent with the response code
             if response.status > 300: self.hoststate = 0
         except Exception as ex:
-            logging.exception(ex)
+            logger.exception(ex)
 
     def StartNewProcess(self ,runnumber, startindex, arch, version, menu,num_threads,num_streams):
-        logging.debug("OnlineResource: StartNewProcess called")
+        logger.debug("OnlineResource: StartNewProcess called")
         self.runnumber = runnumber
 
         """
@@ -578,7 +583,7 @@ class OnlineResource:
         input_disk = bu_disk_list_ramdisk_instance[startindex%len(bu_disk_list_ramdisk_instance)]
         #run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
-        logging.info("starting process with "+version+" and run number "+str(runnumber))
+        logger.info("starting process with "+version+" and run number "+str(runnumber))
 
         if "_patch" in version:
             full_release="cmssw-patch"
@@ -609,7 +614,7 @@ class OnlineResource:
             if self.watchdog:
                 new_run_args.append("skipFirstLumis=True")
 
-        logging.info("arg array "+str(new_run_args).translate(None, "'"))
+        logger.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
 #            dem = demote.demote(conf.user)
             self.process = subprocess.Popen(new_run_args,
@@ -617,29 +622,29 @@ class OnlineResource:
                                             close_fds=True
                                             )
             self.processstate = 100
-            logging.info("started process "+str(self.process.pid))
+            logger.info("started process "+str(self.process.pid))
 #            time.sleep(1.)
             if self.watchdog==None:
                 self.watchdog = ProcessWatchdog(self,self.lock)
                 self.watchdog.start()
-                logging.debug("watchdog thread for "+str(self.process.pid)+" is alive "
+                logger.debug("watchdog thread for "+str(self.process.pid)+" is alive "
                              + str(self.watchdog.is_alive()))
             else:
                 self.watchdog.join()
                 self.watchdog = ProcessWatchdog(self,self.lock)
                 self.watchdog.start()
-                logging.debug("watchdog thread restarted for "+str(self.process.pid)+" is alive "
+                logger.debug("watchdog thread restarted for "+str(self.process.pid)+" is alive "
                               + str(self.watchdog.is_alive()))
         except Exception as ex:
-            logging.info("OnlineResource: exception encountered in forking hlt slave")
-            logging.info(ex)
+            logger.info("OnlineResource: exception encountered in forking hlt slave")
+            logger.info(ex)
 
     def join(self):
-        logging.debug('calling join on thread ' +self.watchdog.name)
+        logger.debug('calling join on thread ' +self.watchdog.name)
         self.watchdog.join()
 
     def disableRestart(self):
-        logging.debug("OnlineResource "+str(self.cpu)+" restart is now disabled")
+        logger.debug("OnlineResource "+str(self.cpu)+" restart is now disabled")
         if self.watchdog:
             self.watchdog.disableRestart()
 
@@ -647,11 +652,11 @@ class OnlineResource:
         resource_lock.acquire()
         try:
             for cpu in self.quarantined:
-                logging.info('Clearing quarantined resource '+cpu)
+                logger.info('Clearing quarantined resource '+cpu)
                 os.rename(quarantined+cpu,idles+cpu)
             self.quarantined = []
         except Exception as ex:
-            logging.exception(ex)
+            logger.exception(ex)
         resource_lock.release()
 
 class ProcessWatchdog(threading.Thread):
@@ -666,16 +671,16 @@ class ProcessWatchdog(threading.Thread):
     def run(self):
         try:
             monfile = self.resource.associateddir+'/hltd.jsn'
-            logging.info('watchdog for process '+str(self.resource.process.pid))
+            logger.info('watchdog for process '+str(self.resource.process.pid))
             self.resource.process.wait()
             returncode = self.resource.process.returncode
             pid = self.resource.process.pid
 
             #update json process monitoring file
             self.resource.processstate=returncode
-            logging.debug('ProcessWatchdog: acquire lock thread '+str(pid))
+            logger.debug('ProcessWatchdog: acquire lock thread '+str(pid))
             self.lock.acquire()
-            logging.debug('ProcessWatchdog: acquired lock thread '+str(pid))
+            logger.debug('ProcessWatchdog: acquired lock thread '+str(pid))
 
             try:
                 with open(monfile,"r+") as fp:
@@ -690,13 +695,13 @@ class ProcessWatchdog(threading.Thread):
 
                     fp.flush()
             except IOError,ex:
-                logging.exception(ex)
+                logger.exception(ex)
             except ValueError:
                 pass
 
-            logging.debug('ProcessWatchdog: release lock thread '+str(pid))
+            logger.debug('ProcessWatchdog: release lock thread '+str(pid))
             self.lock.release()
-            logging.debug('ProcessWatchdog: released lock thread '+str(pid))
+            logger.debug('ProcessWatchdog: released lock thread '+str(pid))
 
 
             abortedmarker = self.resource.statefiledir+'/'+Run.ABORTED
@@ -708,7 +713,7 @@ class ProcessWatchdog(threading.Thread):
                         try:
                             os.rename(used+cpu,idles+cpu)
                         except Exception as ex:
-                            logging.exception(ex)
+                            logger.exception(ex)
                 except:pass
                 resource_lock.release()
                 return
@@ -721,7 +726,7 @@ class ProcessWatchdog(threading.Thread):
             #dqm mode will treat configuration error as a crash and eventually move to quarantined
             if returncode != 0 and ( returncode not in quit_codes or conf.dqm_machine==True):
                 if returncode < 0:
-                    logging.error("process "+str(pid)
+                    logger.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
                               +" on resource(s) " + str(self.resource.cpu)
                               +" exited with signal "
@@ -730,7 +735,7 @@ class ProcessWatchdog(threading.Thread):
                               +str(self.retry_enabled)
                               )
                 else:
-                    logging.error("process "+str(pid)
+                    logger.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
                               +" on resource(s) " + str(self.resource.cpu)
                               +" exited with code "
@@ -752,8 +757,8 @@ class ProcessWatchdog(threading.Thread):
                 try:
                     with open(filepath,"w+") as fi:
                         json.dump(document,fi)
-                except: logging.exception("unable to create %r" %filename)
-                logging.info("pid crash file: %r" %filename)
+                except: logger.exception("unable to create %r" %filename)
+                logger.info("pid crash file: %r" %filename)
 
 
                 if self.resource.retry_attempts < self.retry_limit:
@@ -766,7 +771,7 @@ class ProcessWatchdog(threading.Thread):
                     self.resource.process = None
                     self.resource.retry_attempts += 1
 
-                    logging.info("try to restart process for resource(s) "
+                    logger.info("try to restart process for resource(s) "
                                  +str(self.resource.cpu)
                                  +" attempt "
                                  + str(self.resource.retry_attempts))
@@ -774,10 +779,10 @@ class ProcessWatchdog(threading.Thread):
                     for cpu in self.resource.cpu:
                       os.rename(used+cpu,broken+cpu)
                     resource_lock.release()
-                    logging.debug("resource(s) " +str(self.resource.cpu)+
+                    logger.debug("resource(s) " +str(self.resource.cpu)+
                                   " successfully moved to except")
                 elif self.resource.retry_attempts >= self.retry_limit:
-                    logging.error("process for run "
+                    logger.error("process for run "
                                   +str(self.resource.runnumber)
                                   +" on resources " + str(self.resource.cpu)
                                   +" reached max retry limit "
@@ -797,20 +802,20 @@ class ProcessWatchdog(threading.Thread):
                         fp = open(conf.watch_directory+'/quarantined'+str(self.resource.runnumber).zfill(conf.run_number_padding),'w+')
                         fp.close()
                     except Exception as ex:
-                        logging.exception(ex)
+                        logger.exception(ex)
 
             #successful end= release resource (TODO:maybe should mark aborted for non-0 error codes)
             elif returncode == 0 or returncode in quit_codes:
                 if returncode==0:
-                    logging.info('releasing resource, exit 0 meaning end of run '+str(self.resource.cpu))
+                    logger.info('releasing resource, exit 0 meaning end of run '+str(self.resource.cpu))
                 elif returncode==127:
-                    logging.fatal('error executing start script. Maybe CMSSW environment is not available (cmsRun executable not in path).')
+                    logger.fatal('error executing start script. Maybe CMSSW environment is not available (cmsRun executable not in path).')
                 elif returncode==90:
-                    logging.fatal('error executing start script: python error.')
+                    logger.fatal('error executing start script: python error.')
                 elif returncode in quit_codes:
-                    logging.fatal('error executing start script: CMSSW configuration error.')
+                    logger.fatal('error executing start script: CMSSW configuration error.')
                 else:
-                    logging.fatal('error executing start script: unspecified error.')
+                    logger.fatal('error executing start script: unspecified error.')
 
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
                 endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber).zfill(conf.run_number_padding)
@@ -831,12 +836,12 @@ class ProcessWatchdog(threading.Thread):
 
                 #self.resource.process=None
 
-            #        logging.info('exiting thread '+str(self.resource.process.pid))
+            #        logger.info('exiting thread '+str(self.resource.process.pid))
 
         except Exception as ex:
             resource_lock.release()
-            logging.info("OnlineResource watchdog: exception")
-            logging.exception(ex)
+            logger.info("OnlineResource watchdog: exception")
+            logger.exception(ex)
         return
 
     def disableRestart(self):
@@ -905,11 +910,11 @@ class Run:
                     self.version = fp.readline().strip()
                     fp.close()
                 try:
-                    logging.info("Run "+str(self.runnumber)+" uses "+ self.version+" ("+self.arch+") with "+self.menu)
+                    logger.info("Run "+str(self.runnumber)+" uses "+ self.version+" ("+self.arch+") with "+self.menu)
                     break
                 except Exception as ex:
-                    logging.exception(ex)
-                    logging.error("Run parameters obtained for run "+str(self.runnumber)+": "+ str(self.version)+" ("+str(self.arch)+") with "+str(self.menu))
+                    logger.exception(ex)
+                    logger.error("Run parameters obtained for run "+str(self.runnumber)+": "+ str(self.version)+" ("+str(self.arch)+") with "+str(self.menu))
                     time.sleep(.5)
                     readMenuAttempts+=1
                     if readMenuAttempts==3: raise Exception("Unable to parse HLT parameters")
@@ -919,7 +924,7 @@ class Run:
             self.version = conf.cmssw_default_version
             self.menu = conf.test_hlt_config1
             if conf.role=='fu':
-                logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
+                logger.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
         self.rawinputdir = None
         #
@@ -934,7 +939,7 @@ class Run:
                     self.buoutputdir = os.path.join(conf.micromerge_output,'run'+str(self.runnumber).zfill(conf.run_number_padding))
                 os.mkdir(self.rawinputdir+'/mon')
             except Exception, ex:
-                logging.error("could not create mon dir inside the run input directory")
+                logger.error("could not create mon dir inside the run input directory")
         else:
             self.rawinputdir= os.path.join(bu_disk_list_ramdisk_instance[0],'run' + str(self.runnumber).zfill(conf.run_number_padding))
 
@@ -943,10 +948,10 @@ class Run:
         if conf.use_elasticsearch == True:
             try:
                 if conf.role == "bu":
-                    logging.info("starting elasticbu.py with arguments:"+self.dirname)
+                    logger.info("starting elasticbu.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.instance,str(self.runnumber)]
                 else:
-                    logging.info("starting elastic.py with arguments:"+self.dirname)
+                    logger.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes)]
 
                 self.elastic_monitor = subprocess.Popen(elastic_args,
@@ -955,42 +960,42 @@ class Run:
                                                         )
 
             except OSError as ex:
-                logging.error("failed to start elasticsearch client")
-                logging.error(ex)
+                logger.error("failed to start elasticsearch client")
+                logger.error(ex)
         if conf.role == "fu" and conf.dqm_machine==False:
             try:
-                logging.info("starting anelastic.py with arguments:"+self.dirname)
+                logger.info("starting anelastic.py with arguments:"+self.dirname)
                 elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir,bu_disk_list_output_instance[0]]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
                                                     )
             except OSError as ex:
-                logging.fatal("failed to start anelastic.py client:")
-                logging.exception(ex)
+                logger.fatal("failed to start anelastic.py client:")
+                logger.exception(ex)
                 sys.exit(1)
 
 
     def AcquireResource(self,resourcenames,fromstate):
         idles = conf.resource_base+'/'+fromstate+'/'
         try:
-            logging.debug("Trying to acquire resource "
+            logger.debug("Trying to acquire resource "
                           +str(resourcenames)
                           +" from "+fromstate)
 
             for resourcename in resourcenames:
               os.rename(idles+resourcename,used+resourcename)
             if not filter(lambda x: x.cpu==resourcenames,self.online_resource_list):
-                logging.debug("resource(s) "+str(resourcenames)
+                logger.debug("resource(s) "+str(resourcenames)
                               +" not found in online_resource_list, creating new")
                 self.online_resource_list.append(OnlineResource(resourcenames,self.lock))
                 return self.online_resource_list[-1]
-            logging.debug("resource(s) "+str(resourcenames)
+            logger.debug("resource(s) "+str(resourcenames)
                           +" found in online_resource_list")
             return filter(lambda x: x.cpu==resourcenames,self.online_resource_list)[0]
         except Exception as ex:
-            logging.info("exception encountered in looking for resources")
-            logging.info(ex)
+            logger.info("exception encountered in looking for resources")
+            logger.info(ex)
 
     def ContactResource(self,resourcename):
         self.online_resource_list.append(OnlineResource(resourcename,self.lock))
@@ -1000,15 +1005,15 @@ class Run:
         self.online_resource_list.remove(res)
 
     def AcquireResources(self,mode):
-        logging.info("acquiring resources from "+conf.resource_base)
+        logger.info("acquiring resources from "+conf.resource_base)
         idles = conf.resource_base
         idles += '/idle/' if conf.role == 'fu' else '/boxes/'
         try:
             dirlist = os.listdir(idles)
         except Exception as ex:
-            logging.info("exception encountered in looking for resources")
-            logging.info(ex)
-        logging.info(str(dirlist))
+            logger.info("exception encountered in looking for resources")
+            logger.info(ex)
+        logger.info(str(dirlist))
         current_time = time.time()
         count = 0
         cpu_group=[]
@@ -1016,20 +1021,20 @@ class Run:
 
         update_success,black_list=updateBlacklist()
         if update_success==False:
-            logging.fatal("unable to check blacklist: giving up on run start")
+            logger.fatal("unable to check blacklist: giving up on run start")
             return False
 
         for cpu in dirlist:
             #skip self
             if conf.role=='bu' and cpu == os.uname()[1]:continue
             if cpu in black_list:
-                logging.info("skipping blacklisted resource "+str(resource.cpu))
+                logger.info("skipping blacklisted resource "+str(resource.cpu))
                 continue
  
             count = count+1
             cpu_group.append(cpu)
             age = current_time - os.path.getmtime(idles+cpu)
-            logging.info("found resource "+cpu+" which is "+str(age)+" seconds old")
+            logger.info("found resource "+cpu+" which is "+str(age)+" seconds old")
             if conf.role == 'fu':
                 if count == nstreams:
                   self.AcquireResource(cpu_group,'idle')
@@ -1051,12 +1056,12 @@ class Run:
             except:pass
         self.is_active_run = True
         for resource in self.online_resource_list:
-            logging.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
+            logger.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
             if conf.role == 'fu':
                 self.StartOnResource(resource)
             else:
                 if resource.cpu in black_list:
-                    logging.info("skipping blacklisted resource "+str(resource.cpu))
+                    logger.info("skipping blacklisted resource "+str(resource.cpu))
                 else:
                     resource.NotifyNewRun(self.runnumber)
                 #update begin time to after notifying FUs
@@ -1069,11 +1074,11 @@ class Run:
             self.startCompletedChecker()
 
     def StartOnResource(self, resource):
-        logging.debug("StartOnResource called")
+        logger.debug("StartOnResource called")
         resource.statefiledir=conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
         mondir = os.path.join(resource.statefiledir,'mon')
         resource.associateddir=mondir
-        logging.info(str(nthreads)+' '+str(nstreams))
+        logger.info(str(nthreads)+' '+str(nstreams))
         resource.StartNewProcess(self.runnumber,
                                  self.online_resource_list.index(resource),
                                  self.arch,
@@ -1081,10 +1086,10 @@ class Run:
                                  self.menu,
                                  int(round((len(resource.cpu)*float(nthreads)/nstreams))),
                                  len(resource.cpu))
-        logging.debug("StartOnResource process started")
-        #logging.debug("StartOnResource going to acquire lock")
+        logger.debug("StartOnResource process started")
+        #logger.debug("StartOnResource going to acquire lock")
         #self.lock.acquire()
-        #logging.debug("StartOnResource lock acquired")
+        #logger.debug("StartOnResource lock acquired")
         try:
             os.makedirs(mondir)
         except OSError:
@@ -1094,7 +1099,7 @@ class Run:
         fp=None
         stat = []
         if not os.path.exists(monfile):
-            logging.debug("No log file "+monfile+" found, creating one")
+            logger.debug("No log file "+monfile+" found, creating one")
             fp=open(monfile,'w+')
             attempts=0
             while True:
@@ -1106,12 +1111,12 @@ class Run:
                         attempts+=1
                         continue
                     else:
-                        logging.error("could not retrieve process parameters")
-                        logging.exception(ex)
+                        logger.error("could not retrieve process parameters")
+                        logger.exception(ex)
                         break
 
         else:
-            logging.debug("Updating existing log file "+monfile)
+            logger.debug("Updating existing log file "+monfile)
             fp=open(monfile,'r+')
             stat=json.load(fp)
             attempts=0
@@ -1130,8 +1135,8 @@ class Run:
                         time.sleep(.05)
                         continue
                     else:
-                        logging.error("could not retrieve process parameters")
-                        logging.exception(ex)
+                        logger.error("could not retrieve process parameters")
+                        logger.exception(ex)
                         break
         fp.seek(0)
         fp.truncate()
@@ -1140,7 +1145,7 @@ class Run:
         fp.flush()
         fp.close()
         #self.lock.release()
-        #logging.debug("StartOnResource lock released")
+        #logger.debug("StartOnResource lock released")
 
     def Stop(self):
         #used to gracefully stop CMSSW and finish scripts
@@ -1151,7 +1156,7 @@ class Run:
             bu_eols_files = filter( lambda x: x.endswith("_EoLS.jsn"),os.listdir(rawinputdir))
             bu_lumis = (sorted([int(x.split('_')[1][2:]) for x in bu_eols_files]))
           except:
-            logging.error("Unable to parse BU EoLS files")
+            logger.error("Unable to parse BU EoLS files")
           if len(bu_lumis): writedoc['lastLS']=bu_lumis[-1]
           else:  writedoc['lastLS']=2
           json.dump(writedoc,f)
@@ -1162,7 +1167,7 @@ class Run:
 
     def Shutdown(self,herod=False):
         #herod mode sends sigkill to all process, however waits for all scripts to finish
-        logging.debug("Run:Shutdown called")
+        logger.debug("Run:Shutdown called")
         self.is_active_run = False
         try:
             self.changeMarkerMaybe(Run.ABORTED)
@@ -1175,16 +1180,16 @@ class Run:
             for resource in self.online_resource_list:
                 if conf.role == 'fu':
                     if resource.processstate==100:
-                        logging.info('terminating process '+str(resource.process.pid)+
+                        logger.info('terminating process '+str(resource.process.pid)+
                                      ' in state '+str(resource.processstate))
 
                         if herod:resource.process.kill()
                         else:resource.process.terminate()
-                        logging.info('process '+str(resource.process.pid)+' join watchdog thread')
+                        logger.info('process '+str(resource.process.pid)+' join watchdog thread')
                         #                    time.sleep(.1)
                         resource.join()
-                        logging.info('process '+str(resource.process.pid)+' terminated')
-                    logging.info('releasing resource(s) '+str(resource.cpu))
+                        logger.info('process '+str(resource.process.pid)+' terminated')
+                    logger.info('releasing resource(s) '+str(resource.cpu))
                     resource.clearQuarantined()
                     
                     resource_lock.acquire()
@@ -1193,7 +1198,7 @@ class Run:
                             os.rename(used+cpu,idles+cpu)
                         except OSError:
                             #@SM:happens if it was quarantined
-                            logging.warning('Unable to find resource file '+used+cpu+'.')
+                            logger.warning('Unable to find resource file '+used+cpu+'.')
                         except Exception as ex:
                             resource_lock.release()
                             raise(ex)
@@ -1213,8 +1218,8 @@ class Run:
                         self.anelastic_monitor.terminate()
                         self.anelastic_monitor.wait()
             except Exception as ex:
-                logging.info("exception encountered in shutting down anelastic.py "+ str(ex))
-                #logging.exception(ex)
+                logger.info("exception encountered in shutting down anelastic.py "+ str(ex))
+                #logger.exception(ex)
             if conf.use_elasticsearch == True:
                 try:
                     if self.elastic_monitor:
@@ -1224,13 +1229,13 @@ class Run:
                             self.elastic_monitor.terminate()
                             self.elastic_monitor.wait()
                 except Exception as ex:
-                    logging.info("exception encountered in shutting down elastic.py")
-                    logging.exception(ex)
+                    logger.info("exception encountered in shutting down elastic.py")
+                    logger.exception(ex)
             if self.waitForEndThread is not None:
                 self.waitForEndThread.join()
         except Exception as ex:
-            logging.info("exception encountered in shutting down resources")
-            logging.exception(ex)
+            logger.info("exception encountered in shutting down resources")
+            logger.exception(ex)
 
         global active_runs
         active_runs_copy = active_runs[:]
@@ -1245,7 +1250,7 @@ class Run:
         except:
             pass
 
-        logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
+        logger.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
     def ShutdownBU(self):
 
@@ -1266,8 +1271,8 @@ class Run:
                     time.sleep(.1)
                     self.elastic_monitor.wait()
             except Exception as ex:
-                logging.info("exception encountered in shutting down elasticbu.py: " + str(ex))
-                #logging.exception(ex)
+                logger.info("exception encountered in shutting down elasticbu.py: " + str(ex))
+                #logger.exception(ex)
 
         global active_runs
         active_runs_copy = active_runs[:]
@@ -1275,7 +1280,7 @@ class Run:
             if run_num == self.runnumber:
                 active_runs.remove(run_num)
 
-        logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' on BU completed')
+        logger.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' on BU completed')
 
 
     def StartWaitForEnd(self):
@@ -1285,11 +1290,11 @@ class Run:
             self.waitForEndThread = threading.Thread(target = self.WaitForEnd)
             self.waitForEndThread.start()
         except Exception as ex:
-            logging.info("exception encountered in starting run end thread")
-            logging.info(ex)
+            logger.info("exception encountered in starting run end thread")
+            logger.info(ex)
 
     def WaitForEnd(self):
-        logging.info("wait for end thread!")
+        logger.info("wait for end thread!")
         global cloud_mode
         try:
             for resource in self.online_resource_list:
@@ -1298,19 +1303,19 @@ class Run:
                 if resource.processstate is not None:#was:100
                     if resource.process is not None and resource.process.pid is not None: ppid = resource.process.pid
                     else: ppid="None"
-                    logging.info('waiting for process '+str(ppid)+
+                    logger.info('waiting for process '+str(ppid)+
                                  ' in state '+str(resource.processstate) +
                                  ' to complete ')
                     try:
                         resource.join()
-                        logging.info('process '+str(resource.process.pid)+' completed')
+                        logger.info('process '+str(resource.process.pid)+' completed')
                     except:pass
 #                os.rename(used+resource.cpu,idles+resource.cpu)
                 resource.clearQuarantined()
                 resource.process=None
             self.online_resource_list = []
             if conf.role == 'fu':
-                logging.info('writing complete file')
+                logger.info('writing complete file')
                 self.changeMarkerMaybe(Run.COMPLETE)
                 try:
                     os.remove(conf.watch_directory+'/end'+str(self.runnumber).zfill(conf.run_number_padding))
@@ -1319,30 +1324,30 @@ class Run:
                     if conf.dqm_machine==False:
                         self.anelastic_monitor.wait()
                 except OSError,ex:
-                    logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
+                    logger.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
 
             if conf.use_elasticsearch == True:
                 try:
                     self.elastic_monitor.wait()
                 except OSError,ex:
-                    logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
+                    logger.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
             if conf.delete_run_dir is not None and conf.delete_run_dir == True:
                 try:
                     shutil.rmtree(self.dirname)
                 except Exception as ex:
-                    logging.exception(ex)
+                    logger.exception(ex)
 
             global active_runs
-            logging.info("active runs.."+str(active_runs))
+            logger.info("active runs.."+str(active_runs))
             for run_num  in active_runs:
                 if run_num == self.runnumber:
                     active_runs.remove(run_num)
-            logging.info("new active runs.."+str(active_runs))
+            logger.info("new active runs.."+str(active_runs))
 
             if cloud_mode==True:
                 resource_lock.acquire()
                 if len(active_runs)>1:
-                    logging.info("VM mode: waiting for runs: "+str(active_runs)+" to finish")
+                    logger.info("VM mode: waiting for runs: "+str(active_runs)+" to finish")
                 else:
                     #give resources to cloud and bail out
                     move_resources_to_cloud()
@@ -1351,8 +1356,8 @@ class Run:
 
         except Exception as ex:
             resource_lock.release()
-            logging.error("exception encountered in ending run")
-            logging.exception(ex)
+            logger.error("exception encountered in ending run")
+            logger.exception(ex)
 
     def changeMarkerMaybe(self,marker):
         dir = self.dirname
@@ -1362,7 +1367,7 @@ class Run:
             fp = open(dir+'/'+marker,'w+')
             fp.close()
         else:
-            logging.error("There are more than one markers for run "
+            logger.error("There are more than one markers for run "
                           +str(self.runnumber))
             return
 
@@ -1371,8 +1376,8 @@ class Run:
             self.anelasticWatchdog = threading.Thread(target = self.runAnelasticWatchdog)
             self.anelasticWatchdog.start()
         except Exception as ex:
-            logging.info("exception encountered in starting anelastic watchdog thread")
-            logging.info(ex)
+            logger.info("exception encountered in starting anelastic watchdog thread")
+            logger.info(ex)
 
     def runAnelasticWatchdog(self):
         try:
@@ -1380,7 +1385,7 @@ class Run:
             if self.is_active_run == True:
                 #abort the run
                 self.anelasticWatchdog=None
-                logging.fatal("Premature end of anelastic.py")
+                logger.fatal("Premature end of anelastic.py")
                 self.Shutdown()
         except:
             pass
@@ -1393,14 +1398,14 @@ class Run:
     def startCompletedChecker(self):
         if conf.role == 'bu': #and conf.use_elasticsearch == True:
             try:
-                logging.info('start checking completition of run '+str(self.runnumber))
+                logger.info('start checking completition of run '+str(self.runnumber))
                 #mode 1: check for complete entries in ES
                 #mode 2: check for runs in 'boxes' files
-                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs,self.elastic_monitor)
+                self.endChecker = RunCompletedChecker(conf,1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs,self.elastic_monitor)
                 self.endChecker.start()
             except Exception,ex:
-                logging.error('failure to start run completition checker:')
-                logging.exception(ex)
+                logger.error('failure to start run completition checker:')
+                logger.exception(ex)
 
     def checkQuarantinedLimit(self):
         allQuarantined=True
@@ -1428,29 +1433,29 @@ class RunRanger:
         self.inotifyWrapper.start()
 
     def stop_inotify(self):
-        logging.info("RunRanger: Stop inotify wrapper")
+        logger.info("RunRanger: Stop inotify wrapper")
         self.inotifyWrapper.stop()
-        logging.info("RunRanger: Join inotify wrapper")
+        logger.info("RunRanger: Join inotify wrapper")
         self.inotifyWrapper.join()
-        logging.info("RunRanger: Inotify wrapper returned")
+        logger.info("RunRanger: Inotify wrapper returned")
 
     def process_IN_CREATE(self, event):
         nr=0
         global run_list
         global cloud_mode
-        logging.info('RunRanger: event '+event.fullpath)
+        logger.info('RunRanger: event '+event.fullpath)
         dirname=event.fullpath[event.fullpath.rfind("/")+1:]
-        logging.info('RunRanger: new filename '+dirname)
+        logger.info('RunRanger: new filename '+dirname)
         if dirname.startswith('run'):
             nr=int(dirname[3:])
             if nr!=0:
                 try:
-                    logging.info('new run '+str(nr))
+                    logger.info('new run '+str(nr))
                     if cloud_mode==True and entering_cloud_mode==False:
-                        logging.info("received new run notification in VM mode. Checking if idle cores are available...")
+                        logger.info("received new run notification in VM mode. Checking if idle cores are available...")
                         try:
                             if len(os.listdir(idles))<1:
-                                logging.info("this run is skipped because FU is in VM mode and resources have not been returned")
+                                logger.info("this run is skipped because FU is in VM mode and resources have not been returned")
                                 return
                             #return all resources to HLTD (TODO:check if VM tool is done)
                             while True:
@@ -1461,12 +1466,12 @@ class RunRanger:
                                     break
                                 resource_lock.release()
                                 time.sleep(0.1)
-                                logging.warning("could not move all resources, retrying.")
+                                logger.warning("could not move all resources, retrying.")
                             cloud_mode=False
                         except Exception as ex:
                             #resource_lock.release()
-                            logging.fatal("failed to disable VM mode when receiving notification for run "+str(nr))
-                            logging.exception(ex)
+                            logger.fatal("failed to disable VM mode when receiving notification for run "+str(nr))
+                            logger.exception(ex)
                     if conf.role == 'fu':
                         bu_dir = bu_disk_list_ramdisk_instance[0]+'/'+dirname
                         try:
@@ -1494,11 +1499,11 @@ class RunRanger:
                         run_list.remove(run_list[-1])
                     resource_lock.release()
                 except OSError as ex:
-                    logging.error("RunRanger: "+str(ex)+" "+ex.filename)
-                    logging.exception(ex)
+                    logger.error("RunRanger: "+str(ex)+" "+ex.filename)
+                    logger.exception(ex)
                 except Exception as ex:
-                    logging.error("RunRanger: unexpected exception encountered in forking hlt slave")
-                    logging.exception(ex)
+                    logger.error("RunRanger: unexpected exception encountered in forking hlt slave")
+                    logger.exception(ex)
 
         elif dirname.startswith('emu'):
             nr=int(dirname[3:])
@@ -1510,8 +1515,8 @@ class RunRanger:
                     bu_emulator.startNewRun(nr)
 
                 except Exception as ex:
-                    logging.info("exception encountered in starting BU emulator run")
-                    logging.info(ex)
+                    logger.info("exception encountered in starting BU emulator run")
+                    logger.info(ex)
 
                 os.remove(event.fullpath)
 
@@ -1524,7 +1529,7 @@ class RunRanger:
                     try:
                         runtoend = filter(lambda x: x.runnumber==nr,run_list)
                         if len(runtoend)==1:
-                            logging.info('end run '+str(nr))
+                            logger.info('end run '+str(nr))
                             #remove from run_list to prevent intermittent restarts
                             #lock used to fix a race condition when core files are being moved around
                             resource_lock.acquire()
@@ -1535,34 +1540,34 @@ class RunRanger:
                                 runtoend[0].StartWaitForEnd()
                             if bu_emulator and bu_emulator.runnumber != None:
                                 bu_emulator.stop()
-                            #logging.info('run '+str(nr)+' removing end-of-run marker')
+                            #logger.info('run '+str(nr)+' removing end-of-run marker')
                             #os.remove(event.fullpath)
                         elif len(runtoend)==0:
-                            logging.warning('request to end run '+str(nr)
+                            logger.warning('request to end run '+str(nr)
                                           +' which does not exist')
                             os.remove(event.fullpath)
                         else:
-                            logging.error('request to end run '+str(nr)
+                            logger.error('request to end run '+str(nr)
                                           +' has more than one run object - this should '
                                           +'*never* happen')
 
                     except Exception as ex:
                         resource_lock.release()
-                        logging.info("exception encountered when waiting hltrun to end")
-                        logging.info(ex)
+                        logger.info("exception encountered when waiting hltrun to end")
+                        logger.info(ex)
                 else:
-                    logging.error('request to end run '+str(nr)
+                    logger.error('request to end run '+str(nr)
                                   +' which is an invalid run number - this should '
                                   +'*never* happen')
             else:
-                logging.error('request to end run '+str(nr)
+                logger.error('request to end run '+str(nr)
                               +' which is NOT a run number - this should '
                               +'*never* happen')
 
         elif dirname.startswith('herod'):
             os.remove(event.fullpath)
             if conf.role == 'fu':
-                logging.info("killing all CMSSW child processes")
+                logger.info("killing all CMSSW child processes")
                 for run in run_list:
                     run.Shutdown(True)
             elif conf.role == 'bu':
@@ -1572,24 +1577,24 @@ class RunRanger:
                 try:
                     dirlist = os.listdir(boxdir)
                     current_time = time.time()
-                    logging.info("sending herod to child FUs")
+                    logger.info("sending herod to child FUs")
                     for name in dirlist:
                         if name == os.uname()[1]:continue
                         age = current_time - os.path.getmtime(boxdir+name)
-                        logging.info('found box '+name+' with keepalive age '+str(age))
+                        logger.info('found box '+name+' with keepalive age '+str(age))
                         if age < 20:
                             connection = httplib.HTTPConnection(name, conf.cgi_port - self.cgi_instance_port_offset)
                             connection.request("GET",'cgi-bin/herod_cgi.py')
                             response = connection.getresponse()
-                    logging.info("sent herod to all child FUs")
+                    logger.info("sent herod to all child FUs")
                 except Exception as ex:
-                    logging.error("exception encountered in contacting resources")
-                    logging.info(ex)
+                    logger.error("exception encountered in contacting resources")
+                    logger.info(ex)
             run_list=[]
             active_runs=[]
 
         elif dirname.startswith('populationcontrol'):
-            logging.info("terminating all ongoing runs")
+            logger.info("terminating all ongoing runs")
             for run in run_list:
                 if conf.role=='fu':
                     run.Shutdown()
@@ -1597,21 +1602,21 @@ class RunRanger:
                     run.ShutdownBU()
             run_list = []
             active_runs=[]
-            logging.info("terminated all ongoing runs via cgi interface (populationcontrol)")
+            logger.info("terminated all ongoing runs via cgi interface (populationcontrol)")
             os.remove(event.fullpath)
 
         elif dirname.startswith('harakiri') and conf.role == 'fu':
             os.remove(event.fullpath)
             pid=os.getpid()
-            logging.info('asked to commit seppuku:'+str(pid))
+            logger.info('asked to commit seppuku:'+str(pid))
             try:
-                logging.info('sending signal '+str(SIGKILL)+' to myself:'+str(pid))
+                logger.info('sending signal '+str(SIGKILL)+' to myself:'+str(pid))
                 retval = os.kill(pid, SIGKILL)
-                logging.info('sent SIGINT to myself:'+str(pid))
-                logging.info('got return '+str(retval)+'waiting to die...and hope for the best')
+                logger.info('sent SIGINT to myself:'+str(pid))
+                logger.info('got return '+str(retval)+'waiting to die...and hope for the best')
             except Exception as ex:
-                logging.error("exception in committing harakiri - the blade is not sharp enough...")
-                logging.error(ex)
+                logger.error("exception in committing harakiri - the blade is not sharp enough...")
+                logger.error(ex)
 
         elif dirname.startswith('quarantined'):
             try:
@@ -1627,10 +1632,10 @@ class RunRanger:
                             if runtoend[0].checkQuarantinedLimit()==True:
                                 runtoend[0].Shutdown(True)#run abort in herod mode (wait for anelastic/elastic to shut down)
                     except Exception as ex:
-                        logging.exception(ex)
+                        logger.exception(ex)
 
         elif dirname.startswith('suspend') and conf.role == 'fu':
-            logging.info('suspend mountpoints initiated')
+            logger.info('suspend mountpoints initiated')
             replyport = int(dirname[7:]) if dirname[7:].isdigit()==True else conf.cgi_port
             global suspended
             suspended=True
@@ -1642,14 +1647,14 @@ class RunRanger:
 
             if umount_success==False:
                 time.sleep(1)
-                logging.error("Suspend initiated from BU failed, trying again...")
+                logger.error("Suspend initiated from BU failed, trying again...")
                 #notifying itself again
                 try:os.remove(event.fullpath)
                 except:pass
                 fp = open(event.fullpath,"w+")
                 fp.close()
                 return 
-                #logging.info("Suspend failed, preparing for harakiri...")
+                #logger.info("Suspend failed, preparing for harakiri...")
                 #time.sleep(.1)
                 #fp = open(os.path.join(os.path.dirname(event.fullpath.rstrip(os.path.sep)),'harakiri'),"w+")
                 #fp.close()
@@ -1666,15 +1671,15 @@ class RunRanger:
             #first report to BU that umount was done
             try:
                 if bu_name==None:
-                    logging.fatal("No BU name was found in the bus.config file. Leaving mount points unmounted until the hltd service restart.")
+                    logger.fatal("No BU name was found in the bus.config file. Leaving mount points unmounted until the hltd service restart.")
                     os.remove(event.fullpath)
                     return
                 connection = httplib.HTTPConnection(bu_name, replyport+20,timeout=5)
                 connection.request("GET",'cgi-bin/report_suspend_cgi.py?host='+os.uname()[1])
                 response = connection.getresponse()
             except Exception as ex:
-                logging.error("Unable to report suspend state to BU "+str(bu_name)+':'+str(replyport+20))
-                logging.exception(ex)
+                logger.error("Unable to report suspend state to BU "+str(bu_name)+':'+str(replyport+20))
+                logger.exception(ex)
 
             #loop while BU is not reachable
             while True:
@@ -1688,26 +1693,26 @@ class RunRanger:
                                 bu_name=line.split('.')[0]
                                 break
                         except:
-                            logging.info('exception test 1')
+                            logger.info('exception test 1')
                             time.sleep(5)
                             continue
                     if bu_name==None:
-                        logging.info('exception test 2')
+                        logger.info('exception test 2')
                         time.sleep(5)
                         continue
 
-                    logging.info('checking if BU hltd is available...')
+                    logger.info('checking if BU hltd is available...')
                     connection = httplib.HTTPConnection(bu_name, replyport,timeout=5)
                     connection.request("GET",'cgi-bin/getcwd_cgi.py')
                     response = connection.getresponse()
-                    logging.info('BU hltd is running !...')
+                    logger.info('BU hltd is running !...')
                     #if we got here, the service is back up
                     break
                 except Exception as ex:
                     try:
-                       logging.info('Failed to contact BU hltd service: ' + str(ex.args[0]) +" "+ str(ex.args[1]))
+                       logger.info('Failed to contact BU hltd service: ' + str(ex.args[0]) +" "+ str(ex.args[1]))
                     except:
-                       logging.info('Failed to contact BU hltd service: ')
+                       logger.info('Failed to contact BU hltd service: ')
                     time.sleep(5)
 
             #mount again
@@ -1715,11 +1720,11 @@ class RunRanger:
             try:os.remove(event.fullpath)
             except:pass
             suspended=False
-            logging.info("Remount is performed")
+            logger.info("Remount is performed")
 
         elif dirname.startswith('exclude') and conf.role == 'fu':
             #service on this machine is asked to be excluded for cloud use
-            logging.info('machine exclude initiated')
+            logger.info('machine exclude initiated')
             resource_lock.acquire()
             cloud_mode=True
             entering_cloud_mode=True
@@ -1727,8 +1732,8 @@ class RunRanger:
                 for run in run_list:
                     run.Stop()#writes signal file for CMSSW to quit and then normal end of runs will be done
             except Exception as ex:
-                logging.fatal("Unable to clear runs. Will not enter VM mode.")
-                logging.exception(ex)
+                logger.fatal("Unable to clear runs. Will not enter VM mode.")
+                logger.exception(ex)
                 cloud_mode=False
                 resource_lock.release()
 
@@ -1743,13 +1748,13 @@ class RunRanger:
                         break
                     resource_lock.release()
                     time.sleep(0.1)
-                    logging.warning("could not move all resources, retrying.")
+                    logger.warning("could not move all resources, retrying.")
                 cloud_mode=False
  
-        logging.debug("RunRanger completed handling of event "+event.fullpath)
+        logger.debug("RunRanger completed handling of event "+event.fullpath)
 
     def process_default(self, event):
-        logging.info('RunRanger: event '+event.fullpath+' type '+str(event.mask))
+        logger.info('RunRanger: event '+event.fullpath+' type '+str(event.mask))
         filename=event.fullpath[event.fullpath.rfind("/")+1:]
 
 class ResourceRanger:
@@ -1767,21 +1772,21 @@ class ResourceRanger:
         self.inotifyWrapper.start()
 
     def stop_managed_monitor(self):
-        logging.info("ResourceRanger: Stop managed monitor")
+        logger.info("ResourceRanger: Stop managed monitor")
         self.managed_monitor.stop()
-        logging.info("ResourceRanger: Join managed monitor")
+        logger.info("ResourceRanger: Join managed monitor")
         self.managed_monitor.join()
-        logging.info("ResourceRanger: managed monitor returned")
+        logger.info("ResourceRanger: managed monitor returned")
 
     def stop_inotify(self):
-        logging.info("ResourceRanger: Stop inotify wrapper")
+        logger.info("ResourceRanger: Stop inotify wrapper")
         self.inotifyWrapper.stop()
-        logging.info("ResourceRanger: Join inotify wrapper")
+        logger.info("ResourceRanger: Join inotify wrapper")
         self.inotifyWrapper.join()
-        logging.info("ResourceRanger: Inotify wrapper returned")
+        logger.info("ResourceRanger: Inotify wrapper returned")
 
     def process_IN_MOVED_TO(self, event):
-        logging.debug('ResourceRanger-MOVEDTO: event '+event.fullpath)
+        logger.debug('ResourceRanger-MOVEDTO: event '+event.fullpath)
         basename = os.path.basename(event.fullpath)
         if basename.startswith('resource_summary'):return
         try:
@@ -1791,7 +1796,7 @@ class ResourceRanger:
             resource_lock.acquire()
             if not (resourcestate == 'online' or resourcestate == 'cloud'
                     or resourcestate == 'quarantined'):
-                logging.debug('ResourceNotifier: new resource '
+                logger.debug('ResourceNotifier: new resource '
                               +resourcename
                               +' in '
                               +resourcepath
@@ -1801,7 +1806,7 @@ class ResourceRanger:
                 ongoing_runs = filter(lambda x: x.is_active_run==True,run_list)
                 if ongoing_runs:
                     ongoing_run = ongoing_runs[0]
-                    logging.info("ResourceRanger: found active run "+str(ongoing_run.runnumber))
+                    logger.info("ResourceRanger: found active run "+str(ongoing_run.runnumber))
                     """grab resources that become available
                     #@@EM implement threaded acquisition of resources here
                     """
@@ -1810,8 +1815,8 @@ class ResourceRanger:
 		    try:
                         reslist = os.listdir(idlesdir)
                     except Exception as ex:
-                        logging.info("exception encountered in looking for resources")
-                        logging.exception(ex)
+                        logger.info("exception encountered in looking for resources")
+                        logger.exception(ex)
                     #put inotify-ed resource as the first item
                     for resindex,resname in enumerate(reslist):
                         fileFound=False
@@ -1840,9 +1845,9 @@ class ResourceRanger:
                         res = ongoing_run.AcquireResource(resourcenames,resourcestate)
 
                     if acquired_sufficient:
-                        logging.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
+                        logger.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
                         ongoing_run.StartOnResource(res)
-                        logging.info("ResourceRanger: started process on resource "
+                        logger.info("ResourceRanger: started process on resource "
                                      +str(res.cpu))
                 else:
                     #if no run is active, move (x N threads) files from except to idle to be picked up for the next run
@@ -1876,18 +1881,18 @@ class ResourceRanger:
                                     os.rename(broken+resname,idles+resname)
 
                         except Exception as ex:
-                            logging.info("exception encountered in looking for resources in except")
-                            logging.info(ex)
+                            logger.info("exception encountered in looking for resources in except")
+                            logger.info(ex)
 
         except Exception as ex:
-            logging.error("exception in ResourceRanger")
-            logging.error(ex)
+            logger.error("exception in ResourceRanger")
+            logger.error(ex)
         try:
             resource_lock.release()
         except:pass
 
     def process_IN_MODIFY(self, event):
-        logging.debug('ResourceRanger-MODIFY: event '+event.fullpath)
+        logger.debug('ResourceRanger-MODIFY: event '+event.fullpath)
         basename = os.path.basename(event.fullpath)
         if basename.startswith('resource_summary'):return
         try:
@@ -1900,17 +1905,17 @@ class ResourceRanger:
                 if self.managed_monitor:
                     self.managed_monitor = system_monitor()
                     self.managed_monitor.start()
-                    logging.info("ResouceRanger: managed monitor is "+str(self.managed_monitor))
+                    logger.info("ResouceRanger: managed monitor is "+str(self.managed_monitor))
         except Exception as ex:
-            logging.error("exception in ResourceRanger")
-            logging.error(ex)
+            logger.error("exception in ResourceRanger")
+            logger.error(ex)
 
     def process_default(self, event):
-        logging.debug('ResourceRanger: event '+event.fullpath +' type '+ str(event.mask))
+        logger.debug('ResourceRanger: event '+event.fullpath +' type '+ str(event.mask))
         filename=event.fullpath[event.fullpath.rfind("/")+1:]
 
     def process_IN_CLOSE_WRITE(self, event):
-        logging.debug('ResourceRanger-IN_CLOSE_WRITE: event '+event.fullpath)
+        logger.debug('ResourceRanger-IN_CLOSE_WRITE: event '+event.fullpath)
         global machine_blacklist
         basename = os.path.basename(event.fullpath)
         if basename.startswith('resource_summary'):return
@@ -1932,8 +1937,8 @@ class ResourceRanger:
                     current_time = time.time()
                     boxinfoFUMap[basename] = [infile.data,current_time]
                 except Exception as ex:
-                    logging.error("Unable to read of parse boxinfo file "+basename)
-                    logging.exception(ex)
+                    logger.error("Unable to read of parse boxinfo file "+basename)
+                    logger.exception(ex)
         #
  
 
@@ -1944,6 +1949,9 @@ class hltd(Daemon2,object):
         Daemon2.__init__(self,instance,'hltd')
 
     def stop(self):
+        #read configuration file
+        setFromConf(self.instance)
+
         if self.silentStatus():
             try:
                 if os.path.exists(conf.watch_directory+'/populationcontrol'):
@@ -1970,10 +1978,10 @@ class hltd(Daemon2,object):
         """
 
         #read configuration file
-        setFromConf(instance)
+        setFromConf(self.instance)
 
         if conf.enabled==False:
-            logging.warning("Service is currently disabled.")
+            logger.warning("Service is currently disabled.")
             sys.exit(1)
 
         if conf.role == 'fu':
@@ -1984,7 +1992,7 @@ class hltd(Daemon2,object):
             while True:
                 if cleanup_resources()==True:break
                 time.sleep(0.1)
-                logging.warning("retrying cleanup_resources")
+                logger.warning("retrying cleanup_resources")
 
             """
             recheck mount points
@@ -2020,12 +2028,12 @@ class hltd(Daemon2,object):
         #start boxinfo elasticsearch updater
         boxInfo = None
         if conf.role == 'bu' and conf.use_elasticsearch == True:
-            boxInfo = BoxInfoUpdater(watch_directory)
+            boxInfo = BoxInfoUpdater(watch_directory,conf)
             boxInfo.start()
 
         logCollector = None
-        if conf.use_elasticsearch == True:
-            logging.info("starting logcollector.py")
+        if conf.use_elasticsearch == True and logCollector==None:
+            logger.info("starting logcollector.py")
             logcollector_args = ['/opt/hltd/python/logcollector.py']
             logcollector_args.append(self.instance)
             logCollector = subprocess.Popen(logcollector_args,preexec_fn=preexec_function,close_fds=True)
@@ -2033,7 +2041,7 @@ class hltd(Daemon2,object):
         runRanger = RunRanger()
         runRanger.register_inotify_path(watch_directory,inotify.IN_CREATE)
         runRanger.start_inotify()
-        logging.info("started RunRanger  - watch_directory " + watch_directory)
+        logger.info("started RunRanger  - watch_directory " + watch_directory)
 
         appliance_base=resource_base
         if resource_base.endswith('/'):
@@ -2056,10 +2064,10 @@ class hltd(Daemon2,object):
                 rr.register_inotify_path(resource_base+'/idle', imask)
                 rr.register_inotify_path(resource_base+'/except', imask)
             rr.start_inotify()
-            logging.info("started ResourceRanger - watch_directory "+resource_base)
+            logger.info("started ResourceRanger - watch_directory "+resource_base)
         except Exception as ex:
-            logging.error("Exception caught in starting ResourceRanger notifier")
-            logging.error(ex)
+            logger.error("Exception caught in starting ResourceRanger notifier")
+            logger.error(ex)
 
         try:
             cgitb.enable(display=0, logdir="/tmp")
@@ -2072,43 +2080,43 @@ class hltd(Daemon2,object):
             os.symlink('/opt/hltd/cgi',watch_directory+'/cgi-bin')
 
             handler.cgi_directories = ['/cgi-bin']
-            logging.info("starting http server on port "+str(conf.cgi_port))
+            logger.info("starting http server on port "+str(conf.cgi_port))
             httpd = BaseHTTPServer.HTTPServer(("", conf.cgi_port), handler)
 
-            logging.info("hltd serving at port "+str(conf.cgi_port)+" with role "+conf.role)
+            logger.info("hltd serving at port "+str(conf.cgi_port)+" with role "+conf.role)
             os.chdir(watch_directory)
             httpd.serve_forever()
         except KeyboardInterrupt:
-            logging.info("terminating all ongoing runs")
+            logger.info("terminating all ongoing runs")
             for run in run_list:
                 if conf.role=='fu':
                     run.Shutdown()
                 elif conf.role=='bu':
                     run.ShutdownBU()
-            logging.info("terminated all ongoing runs")
-            logging.info("stopping run ranger inotify helper")
+            logger.info("terminated all ongoing runs")
+            logger.info("stopping run ranger inotify helper")
             runRanger.stop_inotify()
-            logging.info("stopping resource ranger inotify helper")
+            logger.info("stopping resource ranger inotify helper")
             rr.stop_inotify()
             if boxInfo is not None:
-                logging.info("stopping boxinfo updater")
+                logger.info("stopping boxinfo updater")
                 boxInfo.stop()
             if logCollector is not None:
                 logCollector.terminate()
-            logging.info("stopping system monitor")
+            logger.info("stopping system monitor")
             rr.stop_managed_monitor()
-            logging.info("closing httpd socket")
+            logger.info("closing httpd socket")
             httpd.socket.close()
-            logging.info(threading.enumerate())
-            logging.info("unmounting mount points")
+            logger.info(threading.enumerate())
+            logger.info("unmounting mount points")
             if cleanup_mountpoints(remount=False)==False:
               time.sleep(1)
               cleanup_mountpoints(remount=False)
             
-            logging.info("shutdown of service completed")
+            logger.info("shutdown of service completed")
         except Exception as ex:
-            logging.info("exception encountered in operating hltd")
-            logging.info(ex)
+            logger.info("exception encountered in operating hltd")
+            logger.info(ex)
             runRanger.stop_inotify()
             rr.stop_inotify()
             rr.stop_managed_monitor()

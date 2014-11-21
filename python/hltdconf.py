@@ -90,6 +90,6 @@ def initConf(instance='main'):
         if instance!='main':
             conf = hltdConf('/etc/hltd-'+instance+'.conf')
     except:pass
-    if conf==None: conf = hltdConf('/etc/hltd.conf')
+    if conf==None and instance=='main': conf = hltdConf('/etc/hltd.conf')
     return conf
 

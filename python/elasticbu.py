@@ -49,8 +49,9 @@ def getURLwithIP(url):
 
 class elasticBandBU:
 
-    def __init__(self,runnumber,startTime,runMode=True):
+    def __init__(self,conf,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.conf=conf
         self.es_server_url=conf.elastic_runindex_url
         self.runindex_write="runindex_"+conf.elastic_runindex_name+"_write"
         self.runindex_read="runindex_"+conf.elastic_runindex_name+"_read"
@@ -183,7 +184,7 @@ class elasticBandBU:
 
         #check box file against blacklist
         try:
-           with open(os.path.join(conf.watch_directory,'appliance','blacklist'),"r") as fi:
+           with open(os.path.join(self.conf.watch_directory,'appliance','blacklist'),"r") as fi:
                try:
                    black_list = json.load(fi)
                except ValueError:
@@ -430,10 +431,11 @@ class elasticBoxCollectorBU():
 
 class BoxInfoUpdater(threading.Thread):
 
-    def __init__(self,ramdisk):
+    def __init__(self,ramdisk,conf):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stopping = False
         self.es=None
+        self.conf=conf
 
         try:
             threading.Thread.__init__(self)
@@ -458,7 +460,7 @@ class BoxInfoUpdater(threading.Thread):
 
     def run(self):
         try:
-            self.es = elasticBandBU(0,'',False)
+            self.es = elasticBandBU(self.conf,0,'',False)
             if self.stopping:return
 
             self.ec = elasticBoxCollectorBU(self.es)
@@ -488,8 +490,9 @@ class BoxInfoUpdater(threading.Thread):
 
 class RunCompletedChecker(threading.Thread):
 
-    def __init__(self,mode,nr,nresources,run_dir,active_runs,elastic_process):
+    def __init__(self,conf,mode,nr,nresources,run_dir,active_runs,elastic_process):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.conf=conf
         self.mode = mode
         self.nr = nr
         self.nresources = nresources
@@ -577,7 +580,7 @@ class RunCompletedChecker(threading.Thread):
             if os.path.exists(self.eorCheckPath) or os.path.exists(self.rundirCheckPath)==False:
                 break
 
-        dir = conf.resource_base+'/boxes/'
+        dir = self.conf.resource_base+'/boxes/'
         check_boxes=True
         check_es_complete=True
         total_es_elapsed=0
@@ -602,7 +605,7 @@ class RunCompletedChecker(threading.Thread):
                             fm_time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
                             #fill in central index completition time
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
-                            requests.post(conf.elastic_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',postq,timeout=5)
+                            requests.post(self.conf.elastic_runindex_url+'/'+"runindex_"+self.conf.elastic_runindex_name+'_write/run',postq,timeout=5)
                             self.logger.info("filled in completition time for run"+str(self.nr))
                         except IndexError:
                             # 0 FU resources present in this run, skip writing completition time
@@ -626,7 +629,7 @@ class RunCompletedChecker(threading.Thread):
             #exit if both checks are complete
             if check_boxes==False and check_es_complete==False:
                 try:
-                    if conf.close_es_index==True:
+                    if self.conf.close_es_index==True:
                         #wait a bit for queries to complete
                         time.sleep(10)
                         resp = requests.post(self.urlclose,timeout=5)
@@ -652,7 +655,7 @@ if __name__ == "__main__":
     conf=initConf(sys.argv[1])
 
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),
-                    level=logging.INFO,
+                    level=conf.service_log_level,
                     format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
@@ -694,7 +697,7 @@ if __name__ == "__main__":
 
         mr.start_inotify()
 
-        es = elasticBandBU(runnumber,startTime)
+        es = elasticBandBU(conf,runnumber,startTime)
 
         #starting elasticCollector thread
         ec = elasticCollectorBU(es,mainDir)
