@@ -1,11 +1,14 @@
-#/!bin/bash
+#!/bin/bash
 if [ -n "$1" ]; then
-  if [ -f $1 ]; then
+  if [ -d $1 ]; then
 
     basedir=`readlink -e $1`
     umask 0
-    mount | grep $basedir/ | grep /dev/loop | awk '{print $3}' | umount
-
+    var=`mount | grep $basedir/ | grep /dev/loop | awk '{print $3}'`
+    printf %s "$var" | while IFS= read -r line
+    do
+       unmount $line
+    done
     if [ $? != 0 ]; then
       echo "Unsuccessful umount of ${basedir}/"
       exit 2

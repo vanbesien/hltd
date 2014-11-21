@@ -951,6 +951,9 @@ def registerSignal(eventRef):
     
 
 if __name__ == "__main__":
+
+    conf=initConf(sys.argv[1])
+
     logging.basicConfig(filename=os.path.join(conf.log_dir,"logcollector.log"),
                     level=logging.INFO,
                     format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',

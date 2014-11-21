@@ -36,11 +36,6 @@ from elasticbu import RunCompletedChecker
 
 from aUtils import fileHandler
 
-idles = conf.resource_base+'/idle/'
-used = conf.resource_base+'/online/'
-broken = conf.resource_base+'/except/'
-quarantined = conf.resource_base+'/quarantined/'
-cloud = conf.resource_base+'/cloud/'
 nthreads = None
 nstreams = None
 expected_processes = None
@@ -58,15 +53,27 @@ cloud_mode=False
 machine_blacklist=[]
 boxinfoFUMap = {}
 
-#prepare log directory
-if not os.path.exists(conf.log_dir): os.makedirs(conf.log_dir)
+def setFromConf(myinstance):
 
-logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
+    global conf
+    conf=initConf(myinstance)
+
+    idles = conf.resource_base+'/idle/'
+    used = conf.resource_base+'/online/'
+    broken = conf.resource_base+'/except/'
+    quarantined = conf.resource_base+'/quarantined/'
+    cloud = conf.resource_base+'/cloud/'
+
+    #prepare log directory
+    if not os.path.exists(conf.log_dir): os.makedirs(conf.log_dir)
+
+    logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
                     format='%(levelname)s:%(asctime)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-conf.dump()
+    conf.dump()
+
 
 def preexec_function():
     dem = demote.demote(conf.user)
@@ -302,7 +309,7 @@ def updateBlacklist(parseOnly=False):
     if conf.role=='bu':
         try:
             os.stat('/etc/appliance/blacklist')
-            with open('/etc/appliance/blacklist',"r") as fi:
+            with open('/etc/appliance/blacklist','r') as fi:
                 try:
                     static_black_list = json.load(fi)
                     black_list+=static_black_list
@@ -315,7 +322,7 @@ def updateBlacklist(parseOnly=False):
         #TODO:have mandatory check in blacklist DB
         try:
             forceUpdate=False
-            with open(os.path.join(conf.watch_directory,'appliance','blacklist','r')) as fi:
+            with open(os.path.join(conf.watch_directory,'appliance','blacklist'),'r') as fi:
                 active_black_list = json.load(fi)
         except:
             forceUpdate=True
@@ -360,6 +367,7 @@ class system_monitor(threading.Thread):
             global suspended
             res_path_temp = os.path.join(conf.watch_directory,'appliance','resource_summary_temp')
             res_path = os.path.join(conf.watch_directory,'appliance','resource_summary')
+            selfhost = os.uname()[1]
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
@@ -370,10 +378,12 @@ class system_monitor(threading.Thread):
                 if conf.role == 'bu':
                     resource_count = 0
                     current_time = time.time()
-                    for key,entry in boxinfoFUMap:
+                    for key in boxinfoFUMap:
+                        if key==selfhost:continue
+                        entry = boxinfoFUMap[key]
                         if current_time - entry[1] > 20:continue
                         resource_count+=int(entry[0]['idles'])
-                        resource_count+=int(entry[0]['online'])
+                        resource_count+=int(entry[0]['used'])
                         resource_count+=int(entry[0]['broken'])
                     res_doc = {"resources":resource_count}
                     with open(res_path_temp,'w') as fp:
@@ -533,7 +543,7 @@ class OnlineResource:
         self.runnumber = runnumber
         logging.info("calling start of run on "+self.cpu[0]);
         try:
-            connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
+            connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port - conf.cgi_instance_port_offset)
             connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
             response = connection.getresponse()
             #do something intelligent with the response code
@@ -546,7 +556,7 @@ class OnlineResource:
 
     def NotifyShutdown(self):
         try:
-            connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port)
+            connection = httplib.HTTPConnection(self.cpu[0], conf.cgi_port - self.cgi_instance_port_offset)
             connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
             time.sleep(0.05)
             response = connection.getresponse()
@@ -934,7 +944,7 @@ class Run:
             try:
                 if conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.instance,str(self.runnumber)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes)]
@@ -1568,7 +1578,7 @@ class RunRanger:
                         age = current_time - os.path.getmtime(boxdir+name)
                         logging.info('found box '+name+' with keepalive age '+str(age))
                         if age < 20:
-                            connection = httplib.HTTPConnection(name, conf.cgi_port)
+                            connection = httplib.HTTPConnection(name, conf.cgi_port - self.cgi_instance_port_offset)
                             connection.request("GET",'cgi-bin/herod_cgi.py')
                             response = connection.getresponse()
                     logging.info("sent herod to all child FUs")
@@ -1621,6 +1631,7 @@ class RunRanger:
 
         elif dirname.startswith('suspend') and conf.role == 'fu':
             logging.info('suspend mountpoints initiated')
+            replyport = int(dirname[7:]) if dirname[7:].isdigit()==True else conf.cgi_port
             global suspended
             suspended=True
             for run in run_list:
@@ -1658,11 +1669,11 @@ class RunRanger:
                     logging.fatal("No BU name was found in the bus.config file. Leaving mount points unmounted until the hltd service restart.")
                     os.remove(event.fullpath)
                     return
-                connection = httplib.HTTPConnection(bu_name, conf.cgi_port+5,timeout=5)
+                connection = httplib.HTTPConnection(bu_name, replyport+20,timeout=5)
                 connection.request("GET",'cgi-bin/report_suspend_cgi.py?host='+os.uname()[1])
                 response = connection.getresponse()
             except Exception as ex:
-                logging.error("Unable to report suspend state to BU "+str(bu_name)+':'+str(conf.cgi_port+5))
+                logging.error("Unable to report suspend state to BU "+str(bu_name)+':'+str(replyport+20))
                 logging.exception(ex)
 
             #loop while BU is not reachable
@@ -1686,7 +1697,7 @@ class RunRanger:
                         continue
 
                     logging.info('checking if BU hltd is available...')
-                    connection = httplib.HTTPConnection(bu_name, conf.cgi_port,timeout=5)
+                    connection = httplib.HTTPConnection(bu_name, replyport,timeout=5)
                     connection.request("GET",'cgi-bin/getcwd_cgi.py')
                     response = connection.getresponse()
                     logging.info('BU hltd is running !...')
@@ -1900,6 +1911,7 @@ class ResourceRanger:
 
     def process_IN_CLOSE_WRITE(self, event):
         logging.debug('ResourceRanger-IN_CLOSE_WRITE: event '+event.fullpath)
+        global machine_blacklist
         basename = os.path.basename(event.fullpath)
         if basename.startswith('resource_summary'):return
         if conf.role=='fu':return
@@ -1916,7 +1928,7 @@ class ResourceRanger:
                 except:pass
             else:
                 try:
-                    fileHandler(event.fullpath)
+                    infile = fileHandler(event.fullpath)
                     current_time = time.time()
                     boxinfoFUMap[basename] = [infile.data,current_time]
                 except Exception as ex:
@@ -1927,8 +1939,9 @@ class ResourceRanger:
 
 
 class hltd(Daemon2,object):
-    def __init__(self, pidfile):
-        Daemon2.__init__(self,pidfile,'hltd')
+    def __init__(self, instance):
+        self.instance=instance
+        Daemon2.__init__(self,instance,'hltd')
 
     def stop(self):
         if self.silentStatus():
@@ -1955,6 +1968,9 @@ class hltd(Daemon2,object):
         if role is not defined in the configuration (which it shouldn't)
         infer it from the name of the machine
         """
+
+        #read configuration file
+        setFromConf(instance)
 
         if conf.enabled==False:
             logging.warning("Service is currently disabled.")
@@ -2010,8 +2026,9 @@ class hltd(Daemon2,object):
         logCollector = None
         if conf.use_elasticsearch == True:
             logging.info("starting logcollector.py")
-            logcolleccor_args = ['/opt/hltd/python/logcollector.py',]
-            logCollector = subprocess.Popen(['/opt/hltd/python/logcollector.py'],preexec_fn=preexec_function,close_fds=True)
+            logcollector_args = ['/opt/hltd/python/logcollector.py']
+            logcollector_args.append(self.instance)
+            logCollector = subprocess.Popen(logcollector_args,preexec_fn=preexec_function,close_fds=True)
 
         runRanger = RunRanger()
         runRanger.register_inotify_path(watch_directory,inotify.IN_CREATE)
@@ -2099,5 +2116,6 @@ class hltd(Daemon2,object):
 
 
 if __name__ == "__main__":
-    daemon = hltd('/var/run/hltd.pid')
-    daemon.start()
+    pass
+    #daemon = hltd('/var/run/hltd.pid')
+    #daemon.start()

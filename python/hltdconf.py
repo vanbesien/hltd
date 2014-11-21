@@ -33,12 +33,13 @@ class hltdConf:
         self.use_elasticsearch = bool(self.use_elasticsearch=="True")
         self.close_es_index = bool(self.close_es_index=="True")
         self.cgi_port = int(self.cgi_port)
+        self.cgi_instance_port_offset = int(self.cgi_instance_port_offset)
         self.soap2file_port = int(self.soap2file_port)
 
-        self.conf.instance_same_destination = False
         try:
           self.instance_same_destination=bool(self.instance_same_destination=="True")
-        except:pass
+        except:
+          self.instance_same_destination = False
 
         self.dqm_machine = bool(self.dqm_machine=="True")
         if self.dqm_machine:
@@ -83,5 +84,12 @@ class hltdConf:
             if self.role == 'bu': self.watch_directory='/fff/ramdisk'
             if self.role == 'fu': self.watch_directory='/fff/data'
 
+def initConf(instance='main'):
+    conf=None
+    try:
+        if instance!='main':
+            conf = hltdConf('/etc/hltd-'+instance+'.conf')
+    except:pass
+    if conf==None: conf = hltdConf('/etc/hltd.conf')
+    return conf
 
-conf = hltdConf('/etc/hltd.conf')

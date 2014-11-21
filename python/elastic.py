@@ -145,6 +145,8 @@ class elasticCollector():
 
 
 if __name__ == "__main__":
+
+    conf=initConf()
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elastic.log"),
                     level=logging.INFO,
                     format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',

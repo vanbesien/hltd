@@ -24,7 +24,7 @@ if __name__ == "__main__":
             for line in fi.readlines():
               lnstrip = line.strip(' \n')
               if len(lnstrip)>0 and lnstrip.startswith("#")==False:
-              instances.append(lnstrip)
+                  instances.append(lnstrip)
       except:
           instances = ["main"]
   else:
@@ -36,13 +36,16 @@ if __name__ == "__main__":
 
     if len(sys.argv) >= 2:
         if 'start' == sys.argv[1]:
+            if daemon.start()>0:
+                print "Failed to start!"
+                sys.exit(1)
             daemon.touchLockFile()
-            output = Popen(["/opt/hltd/python/hltd.py"], stdout=PIPE).communicate()[0]
-            if daemon.silentStatus():
-                print '[OK]'
-            else:
-                print '[Failed]'
-                print output
+            #output = Popen(["/opt/hltd/python/hltd.py"], stdout=PIPE).communicate()[0]
+            #if daemon.silentStatus():
+            #    print '[OK]'
+            #else:
+            #    print '[Failed]'
+            #    print output
         elif 'stop' == sys.argv[1]:
             if daemon.status():
                 daemon.stop()
@@ -99,15 +102,18 @@ if __name__ == "__main__":
             daemon.removeLockFile()
  
         elif 'restart' == sys.argv[1]:
-            daemon.restart()
+            if daemon.restart()>0:
+                print "Failed to start!"
+                sys.exit(1)
             daemon.touchLockFile()
         elif 'status' == sys.argv[1]:
             daemon.status()
         else:
             print "Unknown command"
             sys.exit(2)
-        sys.exit(0)
 
     else:
         print "usage: %s start|stop|stop-light|restart|status |all|main|instance" % sys.argv[0]
         sys.exit(2)
+
+sys.exit(0)

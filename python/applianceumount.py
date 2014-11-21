@@ -36,8 +36,8 @@ class UmountResponseReceiver(threading.Thread):
             os.symlink('/opt/hltd/cgi',self.watch_directory+'/cgi-bin')
 
             handler.cgi_directories = ['/cgi-bin']
-            print("starting http server on port "+str(self.cgi_port+5))
-            self.httpd = BaseHTTPServer.HTTPServer(("", self.cgi_port+5), handler)
+            print("starting http server on port "+str(self.cgi_port+20))
+            self.httpd = BaseHTTPServer.HTTPServer(("", self.cgi_port+20), handler)
 
             self.httpd.serve_forever()
             self.finished=True
@@ -72,17 +72,20 @@ def stopFUs(instance):
     machine_is_bu=False
     machine_is_fu=False
     cgi_port=9000
+    cgi_offset=0
 
     try:
         f=open(hltdconf,'r')
         for l in f.readlines():
             ls=l.strip(' \n')
-            if not ls.startswith('#') and ls.startswith('watch_directory'):
+            if ls.startswith('watch_directory'):
                 watch_directory=ls.split('=')[1].strip(' ')
-            if not ls.startswith('#') and ls.startswith('role'):
+            elif ls.startswith('role'):
                 if 'bu' in ls.split('=')[1].strip(' '): machine_is_bu=True
                 if 'fu' in ls.split('=')[1].strip(' ')=='fu': machine_is_fu=True
-            if not ls.startswith('#') and ls.startswith('cgi_port'):
+            elif ls.startswith('cgi_instance_port_offset'):
+                cgi_offset=int(ls.split('=')[1].strip(' '))
+            elif ls.startswith('cgi_port'):
                 cgi_port=int(ls.split('=')[1].strip(' '))
         f.close()
     except Exception as ex:
@@ -117,8 +120,9 @@ def stopFUs(instance):
                 receiver.start()
                 time.sleep(1)
             try:
-                connection = httplib.HTTPConnection(machine, cgi_port,timeout=5)
-                connection.request("GET",'cgi-bin/suspend_cgi.py')
+                #subtract cgi offset when connecting machine
+                connection = httplib.HTTPConnection(machine, cgi_port-cgi_offset,timeout=5)
+                connection.request("GET",'cgi-bin/suspend_cgi.py?port='+str(cgi_port))
                 response = connection.getresponse()
                 machinelist.append(machine)
             except:

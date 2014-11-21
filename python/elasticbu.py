@@ -179,6 +179,8 @@ class elasticBandBU:
         current_time = time.time()
         black_list=[]
 
+        if infile.data=={}:return
+
         #check box file against blacklist
         try:
            with open(os.path.join(conf.watch_directory,'appliance','blacklist'),"r") as fi:
@@ -431,6 +433,7 @@ class BoxInfoUpdater(threading.Thread):
     def __init__(self,ramdisk):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stopping = False
+        self.es=None
 
         try:
             threading.Thread.__init__(self)
@@ -645,6 +648,9 @@ class RunCompletedChecker(threading.Thread):
 
 
 if __name__ == "__main__":
+
+    conf=initConf(sys.argv[1])
+
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),
                     level=logging.INFO,
                     format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
@@ -657,7 +663,7 @@ if __name__ == "__main__":
 
     eventQueue = Queue.Queue()
 
-    runnumber = sys.argv[1]
+    runnumber = sys.argv[2]
     watchdir = conf.watch_directory
     mainDir = os.path.join(watchdir,'run'+ runnumber.zfill(conf.run_number_padding))
     dt=os.path.getctime(mainDir)

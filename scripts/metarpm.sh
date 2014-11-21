@@ -276,7 +276,6 @@ chkconfig --add elasticsearch
 #echo "triggered on hltd update or install"
 if [ -f /etc/hltd.instances ]; then
 /sbin/service hltd stop all
-fi
 else
 /sbin/service hltd stop || true
 fi

@@ -167,10 +167,11 @@ class fileHandler(object):
                 data = fi.read()
                 data = data.strip(sep).split(sep)
                 data = dict([d.split('=') for d in data])
+        except IOError,e:
+            data = {}
         except StandardError,e:
             self.logger.exception(e)
             data = {}
-
 
         return data
 

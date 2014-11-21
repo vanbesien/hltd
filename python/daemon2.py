@@ -46,7 +46,7 @@ class Daemon2:
             pid = os.fork()
             if pid > 0:
                 # exit first parent
-                sys.exit(0)
+                return -1
         except OSError, e:
             sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
@@ -82,6 +82,7 @@ class Daemon2:
         atexit.register(self.delpid)
         pid = str(os.getpid())
         file(self.pidfile,'w+').write("%s\n" % pid)
+        return 0
 
     def delpid(self):
         if os.path.exists(self.pidfile):
@@ -105,8 +106,11 @@ class Daemon2:
             sys.stderr.write(message % self.pidfile)
             sys.exit(1)
         # Start the daemon
-        self.daemonize()
-        self.run()
+        ret = self.daemonize()
+        if ret == 0:
+           self.run()
+           ret = 0
+        return ret
 
     def status(self):
         """
@@ -215,7 +219,7 @@ class Daemon2:
         Restart the daemon
         """
         self.stop()
-        self.start()
+        return self.start()
 
     def run(self):
         """

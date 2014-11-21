@@ -3,6 +3,8 @@
 import os,sys,socket
 import shutil
 import json
+import subprocess
+import shutil
 
 import time
 
@@ -233,8 +235,8 @@ def getInstances(hostname):
     #BU can have multiple instances, FU should have only one specified. If none, any host is assumed to have only main instance
     try:
        with open('/opt/fff/instances.input','r') as fi:
-           doc = json.load('/opt/fff/instances.input')
-           return doc[hostname]['names'],doc[hostnames]['sizes']
+           doc = json.load(fi)
+           return doc[hostname]['names'],doc[hostname]['sizes']
     except:
         return ["main"],0
 
@@ -616,13 +618,23 @@ if __name__ == "__main__":
 
       if type=='bu':
 
+        try:os.remove('/etc/hltd.instances')
+        except:pass
         #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
         try:
             subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
-            subprocess.check_call(['rm','-rf','/fff/ramdisk/{run*,*.img}'])
+            os.popen('rm -rf /fff/ramdisk/{run*,*.img}')
         except subprocess.CalledProcessError, err1:
-            logging.fatal('failed to cleanup ramdisk')
-
+            print 'failed to cleanup ramdisk',err1
+        except Exception as ex:
+            print 'failed to cleanup ramdisk',ex
+ 
+        cgibase=9000
+        for idx in enumerate(instances):
+          if idx!=0 and instances[idx]=='main':
+            tmp = instances[0]
+            instances[0]=instances[idx]
+            instances[idx]=tmp
         for idx, instance in enumerate(instances):
 
           watch_dir_bu = '/fff/ramdisk'
@@ -631,26 +643,28 @@ if __name__ == "__main__":
 
           cfile = hltdconf
           if instance != 'main':
-            cfile = '/etc/hltd-'+instance+'.conf' 
+            cfile = '/etc/hltd-'+instance+'.conf'
             shutil.copy(hltdconf,cfile)
             watch_dir_bu = os.path.join(watch_dir_bu,instance)
             out_dir_bu = os.path.join(out_dir_bu,instance)
             log_dir_bu = os.path.join(log_dir_bu,instance)
-
             #run loopback setup for non-main instances
             try:
-                subprocess.check_call(['/opt/hltd/scripts/scripts/makeloopfs.sh','/fff/ramdisk',instance, sizes[idx]])
+                subprocess.check_call(['/opt/hltd/scripts/makeloopfs.sh','/fff/ramdisk',instance, str(sizes[idx])])
             except subprocess.CalledProcessError, err1:
-                logging.fatal('failed to configure loopback device mount in ramdisk')
+                print 'failed to configure loopback device mount in ramdisk'
             
           hltdcfg = FileManager(cfile,'=',hltdEdited,' ',' ')
 
           hltdcfg.reg('enabled','True','[General]')
       
-          #get needed info here
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('instance',instance,'[General]')
-          hltdcfg.reg('cgi_port','9000','[Web]')
+
+          #port for multiple instances
+          hltdcfg.reg('cgi_port',str(cgibase+idx),'[Web]')
+          hltdcfg.reg('cgi_instance_port_offset',str(idx),'[Web]')
+
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('watch_directory',watch_dir_bu,'[General]')
           hltdcfg.reg('role','bu','[General]')
@@ -663,6 +677,12 @@ if __name__ == "__main__":
           hltdcfg.reg('log_dir',log_dir_bu,'[Logs]')
           hltdcfg.commit()
 
+        #write all instances in a file
+        if 'main' not in instances or len(instances)>1:
+          with open('/etc/hltd.instances',"w") as fi:
+            for instance in instances: fi.write(instance+"\n")
+
+
       if type=='fu':
           hltdcfg = FileManager(hltdconf,'=',hltdEdited,' ',' ')
 
@@ -674,6 +694,7 @@ if __name__ == "__main__":
           hltdcfg.reg('watch_directory','/fff/data','[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cgi_port','9000','[Web]')
+          hltdcfg.reg('cgi_instance_port_offset',"0",'[Web]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
