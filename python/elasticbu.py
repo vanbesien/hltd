@@ -494,7 +494,7 @@ class RunCompletedChecker(threading.Thread):
         self.nr = nr
         self.nresources = nresources
         rundir = 'run'+ str(nr).zfill(conf.run_number_padding)
-        self.rundirCheckPath = os.path.join(conf.watch_directory, runname)
+        self.rundirCheckPath = os.path.join(conf.watch_directory, rundir)
         self.eorCheckPath = os.path.join(self.rundirCheckPath,'run' +  str(nr).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn')
         self.indexPrefix = 'run'+str(nr).zfill(conf.run_number_padding) + '_' + conf.elastic_cluster
         self.url =       'http://'+conf.es_local+':9200/' + self.indexPrefix + '*/fu-complete/_count'
