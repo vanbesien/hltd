@@ -12,6 +12,8 @@ import logging
 
 from aUtils import *
 
+#MONBUFFERSIZE = 50
+es_server_url = 'http://localhost:9200'
 
 class elasticBand():
 
@@ -262,7 +264,7 @@ class elasticBand():
                 if attempts==0:
                     self.indexFailures+=1
                     if self.indexFailures<2:
-                        self.logger.warning("Elasticsearch connection error.")
+                        self.logger.error("Elasticsearch connection error.")
                 time.sleep(5)
             except ElasticHttpError as ex:
                 if attempts==0:
