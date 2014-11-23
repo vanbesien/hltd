@@ -13,6 +13,17 @@ from applianceumount import checkMode
 import time
 import syslog
 
+def startService(daemon,srvInstance):
+   daemon.touchLockFile()
+   output = Popen(["/opt/hltd/python/hltd.py",srvInstance], stdout=PIPE).communicate()[0]
+   if daemon.silentStatus():
+       print '[OK]'
+       daemon.touchLockFile()
+   else:
+       print '[Failed]'
+       print output
+       sys.exit(1)
+
 if __name__ == "__main__":
 
   if len(sys.argv) <=2 or sys.argv[2]=="main":
@@ -36,10 +47,11 @@ if __name__ == "__main__":
 
     if len(sys.argv) >= 2:
         if 'start' == sys.argv[1]:
-            if daemon.start()>0:
-                print "Failed to start!"
-                sys.exit(1)
-            daemon.touchLockFile()
+            startService(daemon,instance)
+            #if daemon.start()>0:
+                #print "Failed to start!"
+                #sys.exit(1)
+            #daemon.touchLockFile()
             #output = Popen(["/opt/hltd/python/hltd.py"], stdout=PIPE).communicate()[0]
             #if daemon.silentStatus():
             #    print '[OK]'
@@ -102,10 +114,12 @@ if __name__ == "__main__":
             daemon.removeLockFile()
  
         elif 'restart' == sys.argv[1]:
-            if daemon.restart()>0:
-                print "Failed to start!"
-                sys.exit(1)
-            daemon.touchLockFile()
+            daemon.stop()
+            startService(daemon,instance)
+            #if daemon.restart()>0:
+            #    print "Failed to start!"
+            #    sys.exit(1)
+            #daemon.touchLockFile()
         elif 'status' == sys.argv[1]:
             daemon.status()
         else:

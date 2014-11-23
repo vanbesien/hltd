@@ -1979,6 +1979,7 @@ class hltd(Daemon2,object):
 
         #read configuration file
         setFromConf(self.instance)
+        logger.info("hltd start : instance " + self.instance)
 
         if conf.enabled==False:
             logger.warning("Service is currently disabled.")
@@ -2124,6 +2125,5 @@ class hltd(Daemon2,object):
 
 
 if __name__ == "__main__":
-    pass
-    #daemon = hltd('/var/run/hltd.pid')
-    #daemon.start()
+    daemon = hltd(sys.argv[1])
+    daemon.start()
