@@ -600,10 +600,29 @@ class LumiSectionHandler():
                             doChecksum=False
                             pass
                         (status,checksum)=datfile.moveFile(newfilepath,adler32=doChecksum)
+                        checksum_success=True
                         if doChecksum and status:
                             if checksum_cmssw!=checksum&0xffffffff:
-                                self.logger.fatal("checksum mismatch for "+ datfile.filepath + " expected:" + str(checksum_cmssw) + " got:" + str(checksum))
-                        if checksum_cmssw!=None:
+                                checksum_success=False
+                                try:
+                                    self.logger.fatal("checksum mismatch for "+ datfile.filepath  \
+                                                      +" expected adler32:" + str(checksum_cmssw) + ' size:'+ outfile.getFieldByName("Filesize") \
+                                                      + " , got adler32:" + str(checksum)+' size:'+os.stat(datfile.filepath).st_size)
+                                except:
+                                    self.logger.fatal("checksum mismatch for "+ datfile.filepath)
+                                #failed checksum, assign everything to error events and try to delete the file
+                                procevts = int(outfile.getFieldByName("Processed"))
+                                errevts = int(outfile.getFieldByName("ErrorEvents"))
+                                outfile.setFieldByName("Processed","0")
+                                outfile.setFieldByName("Accepted","0")
+                                outfile.setFieldByName("ErrorEvents",str(procevts+errevts))
+                                outfile.setFieldByName("Filelist","")
+                                outfile.setFieldByName("Filesize","0")
+                                outfile.setFieldByName("FileAdler32","-1")
+                                outfile.writeout()
+                                try:os.remove(newfilepath)
+                                except:pass
+                        if checksum_cmssw!=None and checksum_success==True:
                                 outfile.setFieldByName("FileAdler32",str(checksum_cmssw&0xffffffff))
                                 outfile.writeout()
                         try:

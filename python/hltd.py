@@ -719,7 +719,10 @@ class ProcessWatchdog(threading.Thread):
                 return
 
             #quit codes (configuration errors):
-            quit_codes = [127,90,65,73]
+            quit_codes = [127,90,73]
+
+            #removed 65 because it is not only configuration error
+            #quit_codes = [127,90,65,73]
 
             #cleanup actions- remove process from list and
             # attempt restart on same resource
