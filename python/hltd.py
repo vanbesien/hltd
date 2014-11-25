@@ -40,11 +40,13 @@ nthreads = None
 nstreams = None
 expected_processes = None
 run_list=[]
+runs_pending_shutdown=[]
 bu_disk_list_ramdisk=[]
 bu_disk_list_output=[]
 bu_disk_list_ramdisk_instance=[]
 bu_disk_list_output_instance=[]
 active_runs=[]
+active_runs_errors=[]
 resource_lock = threading.Lock()
 suspended=False
 entering_cloud_mode=False
@@ -414,23 +416,25 @@ class system_monitor(threading.Thread):
                         dirstat = os.statvfs(conf.watch_directory)
                         fp=open(mfile,'w+')
                         fp.write('fm_date='+tstring+'\n')
-                        if cloud_mode==True:
-                            #lie about enabled cores if cloud mode enabled, even if still processing
+                        if cloud_mode==True and entering_cloud_mode==True:
+                            #lie about cores in cloud if cloud mode enabled, even if still processing
                             fp.write('idles=0\n')
                             fp.write('used=0\n')
                             fp.write('broken=0\n')
+                            fp.write('cloud='+str(len(os.listdir(cloud))+len(os.listdir(idles))+len(os.listdir(used))+len(os.listdir(broken)))+'\n')
                         else:
                             fp.write('idles='+str(len(os.listdir(idles)))+'\n')
                             fp.write('used='+str(len(os.listdir(used)))+'\n')
                             fp.write('broken='+str(len(os.listdir(broken)))+'\n')
+                            fp.write('cloud='+str(len(os.listdir(cloud)))+'\n')
 
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
-                        fp.write('cloud='+str(len(os.listdir(cloud)))+'\n')
                         fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
                         fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
                         #two lines with active runs (used to check file consistency)
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                        fp.write('activeRunErrors='+str(active_runs_errors).strip('[]')+'\n')
                         fp.write('entriesComplete=True')
                         fp.close()
                     if conf.role == 'bu':
@@ -450,6 +454,7 @@ class system_monitor(threading.Thread):
                         fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                        fp.write('activeRunErrors='+str(active_runs_errors).strip('[]')+'\n')
                         fp.write('entriesComplete=True')
                         fp.close()
 
@@ -737,8 +742,16 @@ class ProcessWatchdog(threading.Thread):
             #removed 65 because it is not only configuration error
             #quit_codes = [127,90,65,73]
 
-            #cleanup actions- remove process from list and
-            # attempt restart on same resource
+            #increase error count in active_runs_errors which is logged in the box file
+            if returncode!=0:
+                try:
+                    global active_runs
+                    global active_runs_errors
+                    active_runs_errors[active_runs.index(self.resource.runnumber)]+=1
+                except:
+                    pass
+
+            #cleanup actions- remove process from list and attempt restart on same resource
             #dqm mode will treat configuration error as a crash and eventually move to quarantined
             if returncode != 0 and ( returncode not in quit_codes or conf.dqm_machine==True):
                 if returncode < 0:
@@ -759,8 +772,6 @@ class ProcessWatchdog(threading.Thread):
                               +" restart is enabled ? "
                               +str(self.retry_enabled)
                               )
-
-
 
                 #generate crashed pid json file like: run000001_ls0000_crash_pid12345.jsn
                 oldpid = "pid"+str(pid).zfill(5)
@@ -892,15 +903,17 @@ class Run:
         self.anelasticWatchdog = None
         self.threadEvent = threading.Event()
         global active_runs
+        global active_runs_errors
 
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STARTING)
             if int(self.runnumber) in active_runs:
                 raise Exception("Run "+str(self.runnumber)+ "already active")
             active_runs.append(int(self.runnumber))
+            active_runs_errors.append(0)
         else:
-            #currently unused on BU
             active_runs.append(int(self.runnumber))
+            active_runs_errors.append(0)
 
         self.menu_directory = bu_dir+'/'+conf.menu_directory
 
@@ -1183,9 +1196,12 @@ class Run:
         except:pass
         
 
-    def Shutdown(self,herod=False):
+    def Shutdown(self,herod):
         #herod mode sends sigkill to all process, however waits for all scripts to finish
         logger.debug("Run:Shutdown called")
+        global runs_pending_shutdown
+        if self.runnumber in runs_pending_shutdown: runs_pending_shutdown.remove(self.runnumber)
+
         self.is_active_run = False
         try:
             self.changeMarkerMaybe(Run.ABORTED)
@@ -1256,9 +1272,11 @@ class Run:
             logger.exception(ex)
 
         global active_runs
+        global active_runs_errors
         active_runs_copy = active_runs[:]
         for run_num in active_runs_copy:
             if run_num == self.runnumber:
+                active_runs_errors.pop(active_runs.index(run_num))
                 active_runs.remove(run_num)
 
         try:
@@ -1293,9 +1311,11 @@ class Run:
                 #logger.exception(ex)
 
         global active_runs
+        global active_runs_errors
         active_runs_copy = active_runs[:]
         for run_num in active_runs_copy:
             if run_num == self.runnumber:
+                active_runs_errors.pop(active_runs.index(run_num))
                 active_runs.remove(run_num)
 
         logger.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' on BU completed')
@@ -1357,9 +1377,11 @@ class Run:
                     logger.exception(ex)
 
             global active_runs
+            global active_runs_errors
             logger.info("active runs.."+str(active_runs))
             for run_num  in active_runs:
                 if run_num == self.runnumber:
+                    active_runs_errors.pop(active_runs.index(run_num))
                     active_runs.remove(run_num)
             logger.info("new active runs.."+str(active_runs))
 
@@ -1406,7 +1428,7 @@ class Run:
                 #abort the run
                 self.anelasticWatchdog=None
                 logger.fatal("Premature end of anelastic.py")
-                self.Shutdown()
+                self.Shutdown(False)
         except:
             pass
 
@@ -1421,7 +1443,7 @@ class Run:
                 logger.info('start checking completition of run '+str(self.runnumber))
                 #mode 1: check for complete entries in ES
                 #mode 2: check for runs in 'boxes' files
-                self.endChecker = RunCompletedChecker(conf,1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs,self.elastic_monitor)
+                self.endChecker = RunCompletedChecker(conf,1,int(self.runnumber),self.online_resource_list,self.dirname,active_runs,active_runs_errors,self.elastic_monitor)
                 self.endChecker.start()
             except Exception,ex:
                 logger.error('failure to start run completition checker:')
@@ -1462,7 +1484,9 @@ class RunRanger:
     def process_IN_CREATE(self, event):
         nr=0
         global run_list
+        global runs_pending_shutdown
         global active_runs
+        global active_runs_errors
         global cloud_mode
         global entering_cloud_mode
         logger.info('RunRanger: event '+event.fullpath)
@@ -1473,6 +1497,14 @@ class RunRanger:
             if nr!=0:
                 try:
                     logger.info('new run '+str(nr))
+
+
+                    #terminate quarantined runs     
+                    for q_runnumber in runs_pending_shutdown:
+                        q_run = filter(lambda x: x.runnumber==q_runnumber,run_list)
+                        if len(q_run):
+                            q_run[0].Shutdown(True)#run abort in herod mode (wait for anelastic/elastic to shut down)
+
                     if cloud_mode==True and entering_cloud_mode==False:
                         logger.info("received new run notification in VM mode. Checking if idle cores are available...")
                         try:
@@ -1613,16 +1645,17 @@ class RunRanger:
                     logger.error("exception encountered in contacting resources")
                     logger.info(ex)
             run_list=[]
+            active_runs_errors=[]
             active_runs=[]
-
         elif dirname.startswith('populationcontrol'):
             logger.info("terminating all ongoing runs")
             for run in run_list:
                 if conf.role=='fu':
-                    run.Shutdown()
+                    run.Shutdown(run.runnumber in runs_pending_shutdown)
                 elif conf.role=='bu':
                     run.ShutdownBU()
             run_list = []
+            active_runs_errors=[]
             active_runs=[]
             logger.info("terminated all ongoing runs via cgi interface (populationcontrol)")
             os.remove(event.fullpath)
@@ -1652,7 +1685,11 @@ class RunRanger:
                         runtoend = filter(lambda x: x.runnumber==nr,run_list)
                         if len(runtoend)==1:
                             if runtoend[0].checkQuarantinedLimit()==True:
-                                runtoend[0].Shutdown(True)#run abort in herod mode (wait for anelastic/elastic to shut down)
+                                hasHigherRuns = filter(lambda x: x.runnumber>nr,run_list)
+                                if len(hasHigherRuns)>0:
+                                    runtoend[0].Shutdown()
+                                else:
+                                    runs_pending_shutdown.append(nr)
                     except Exception as ex:
                         logger.exception(ex)
 
@@ -1662,7 +1699,7 @@ class RunRanger:
             global suspended
             suspended=True
             for run in run_list:
-                run.Shutdown(False)#terminate all ongoing runs
+                run.Shutdown(run.runnumber in runs_pending_shutdown)#terminate all ongoing runs
             run_list=[]
             time.sleep(.5)
             umount_success = cleanup_mountpoints(remount=False)
@@ -1752,7 +1789,11 @@ class RunRanger:
             entering_cloud_mode=True
             try:
                 for run in run_list:
-                    run.Stop()#writes signal file for CMSSW to quit and then normal end of runs will be done
+                    if run.runnumber in runs_pending_shutdown:
+                        run.Shutdown(True)
+                    else:
+                        #write signal file for CMSSW to quit with 0 after certain LS
+                        run.Stop()
             except Exception as ex:
                 logger.fatal("Unable to clear runs. Will not enter VM mode.")
                 logger.exception(ex)
@@ -1777,7 +1818,8 @@ class RunRanger:
                         cleanup_resources()
                         entering_cloud_mode=False
                         break
-                    logger.warning("could not move all resources, retrying.")
+                    if (tries%10)==0:
+                        logger.warning("could not move all resources, retrying.")
                 cloud_mode=False
  
         logger.debug("RunRanger completed handling of event "+event.fullpath)
@@ -2125,7 +2167,8 @@ class hltd(Daemon2,object):
             logger.info("terminating all ongoing runs")
             for run in run_list:
                 if conf.role=='fu':
-                    run.Shutdown()
+                    global runs_pending_shutdown
+                    run.Shutdown(run.runnumber in runs_pending_shutdown)
                 elif conf.role=='bu':
                     run.ShutdownBU()
             logger.info("terminated all ongoing runs")

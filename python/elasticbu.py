@@ -490,7 +490,7 @@ class BoxInfoUpdater(threading.Thread):
 
 class RunCompletedChecker(threading.Thread):
 
-    def __init__(self,conf,mode,nr,nresources,run_dir,active_runs,elastic_process):
+    def __init__(self,conf,mode,nr,nresources,run_dir,active_runs,active_runs_errors,elastic_process):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.conf=conf
         self.mode = mode
@@ -591,6 +591,7 @@ class RunCompletedChecker(threading.Thread):
 
             if check_boxes==False:
                 try:
+                    self.active_runs_errors.pop(self.active_runs.index(self.nr))
                     self.active_runs.remove(int(self.nr))
                 except:pass
 
