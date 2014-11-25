@@ -434,7 +434,7 @@ class system_monitor(threading.Thread):
                         #two lines with active runs (used to check file consistency)
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
-                        fp.write('activeRunErrors='+str(active_runs_errors).strip('[]')+'\n')
+                        fp.write('activeRunsErrors='+str(active_runs_errors).strip('[]')+'\n')
                         fp.write('entriesComplete=True')
                         fp.close()
                     if conf.role == 'bu':
@@ -454,7 +454,6 @@ class system_monitor(threading.Thread):
                         fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
-                        fp.write('activeRunErrors='+str(active_runs_errors).strip('[]')+'\n')
                         fp.write('entriesComplete=True')
                         fp.close()
 
@@ -736,13 +735,7 @@ class ProcessWatchdog(threading.Thread):
                 resource_lock.release()
                 return
 
-            #quit codes (configuration errors):
-            quit_codes = [127,90,73]
-
-            #removed 65 because it is not only configuration error
-            #quit_codes = [127,90,65,73]
-
-            #increase error count in active_runs_errors which is logged in the box file
+            #bump error count in active_runs_errors which is logged in the box file
             if returncode!=0:
                 try:
                     global active_runs
@@ -752,8 +745,7 @@ class ProcessWatchdog(threading.Thread):
                     pass
 
             #cleanup actions- remove process from list and attempt restart on same resource
-            #dqm mode will treat configuration error as a crash and eventually move to quarantined
-            if returncode != 0 and ( returncode not in quit_codes or conf.dqm_machine==True):
+            if returncode != 0:
                 if returncode < 0:
                     logger.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
@@ -772,6 +764,23 @@ class ProcessWatchdog(threading.Thread):
                               +" restart is enabled ? "
                               +str(self.retry_enabled)
                               )
+                #quit codes (configuration errors):
+                quit_codes = [127,90,73]
+
+                #removed 65 because it is not only configuration error
+                #quit_codes = [127,90,65,73]
+
+                #dqm mode will treat configuration error as a crash and eventually move to quarantined
+                if conf.dqm_machine==False and returncode in quit_codes:
+                    if self.resource.retry_attempts < self.retry_limit:
+                        logger.warning('for this type of error, restarting this process is disabled')
+                        self.resource.retry_attempts=self.retry_limit
+                    if returncode==127:
+                        logger.fatal('Exit code indicates that CMSSW environment might not be available (cmsRun executable not in path).')
+                    elif returncode==90:
+                        logger.fatal('Exit code indicates that there might be a python error in the CMSSW configuration.')
+                    else:
+                        logger.fatal('Exit code indicates that there might be a C/C++ error in the CMSSW configuration.')
 
                 #generate crashed pid json file like: run000001_ls0000_crash_pid12345.jsn
                 oldpid = "pid"+str(pid).zfill(5)
@@ -832,17 +841,8 @@ class ProcessWatchdog(threading.Thread):
                         logger.exception(ex)
 
             #successful end= release resource (TODO:maybe should mark aborted for non-0 error codes)
-            elif returncode == 0 or returncode in quit_codes:
-                if returncode==0:
-                    logger.info('releasing resource, exit 0 meaning end of run '+str(self.resource.cpu))
-                elif returncode==127:
-                    logger.fatal('error executing start script. Maybe CMSSW environment is not available (cmsRun executable not in path).')
-                elif returncode==90:
-                    logger.fatal('error executing start script: python error.')
-                elif returncode in quit_codes:
-                    logger.fatal('error executing start script: CMSSW configuration error.')
-                else:
-                    logger.fatal('error executing start script: unspecified error.')
+            elif returncode == 0:
+                logger.info('releasing resource, exit 0 meaning end of run '+str(self.resource.cpu))
 
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
                 endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber).zfill(conf.run_number_padding)

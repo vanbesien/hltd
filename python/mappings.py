@@ -177,6 +177,7 @@ central_boxinfo_mapping = {
               'usedOutput'    :{'type':'integer'},
               'totalOutput'   :{'type':'integer'},
               'activeRuns'    :{'type':'string'},
+              'activeRunsErrors':{'type':'string',"index":"not_analyzed"},
               },
             '_timestamp' : { 
               'enabled'   : True,
@@ -202,7 +203,7 @@ central_boxinfo_mapping = {
               'usedOutput'    :{'type':'integer'},
               'totalOutput'   :{'type':'integer'},
               'activeRuns'    :{'type':'string'},
-              'hosts'         :{'type':'string',"index":"not_analyzed"},
+              'hosts'           :{'type':'string',"index":"not_analyzed"},
               'blacklistedHosts':{'type':'string',"index":"not_analyzed"}
               },
             '_timestamp' : { 
