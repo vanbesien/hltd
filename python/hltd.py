@@ -57,6 +57,12 @@ def setFromConf(myinstance):
 
     global conf
     global logger
+    global idles
+    global used
+    global broken
+    global quarantined
+    global cloud
+
     conf=initConf(myinstance)
 
     idles = conf.resource_base+'/idle/'
@@ -88,9 +94,9 @@ def preexec_function():
 
 def cleanup_resources():
     try:
-        dirlist = os.listdir(clouds)
+        dirlist = os.listdir(cloud)
         for cpu in dirlist:
-            os.rename(clouds+cpu,idles+cpu)
+            os.rename(cloud+cpu,idles+cpu)
         dirlist = os.listdir(broken)
         for cpu in dirlist:
             os.rename(broken+cpu,idles+cpu)
@@ -106,29 +112,36 @@ def cleanup_resources():
         for i in range(0,int(num_excluded)):
             os.rename(idles+dirlist[i],quarantined+dirlist[i])
         return True
-    except:
+    except Exception as ex:
+        logger.warning(str(ex))
         return False
 
 def move_resources_to_cloud():
     dirlist = os.listdir(broken)
     for cpu in dirlist:
-        os.rename(broken+cpu,clouds+cpu)
+        os.rename(broken+cpu,cloud+cpu)
     dirlist = os.listdir(used)
     for cpu in dirlist:
-        os.rename(used+cpu,clouds+cpu)
+        os.rename(used+cpu,cloud+cpu)
     dirlist = os.listdir(quarantined)
     for cpu in dirlist:
-        os.rename(quarantined+cpu,clouds+cpu)
+        os.rename(quarantined+cpu,cloud+cpu)
     dirlist = os.listdir(idles)
     for cpu in dirlist:
-        os.rename(idles+cpu,clouds+cpu)
+        os.rename(idles+cpu,cloud+cpu)
     dirlist = os.listdir(idles)
     for cpu in dirlist:
-        os.rename(idles+cpu,clouds+cpu)
+        os.rename(idles+cpu,cloud+cpu)
 
 
 
 def cleanup_mountpoints(remount=True):
+
+    global bu_disk_list_ramdisk
+    global bu_disk_list_ramdisk_instance
+    global bu_disk_list_output
+    global bu_disk_list_output_instance
+
     bu_disk_list_ramdisk = []
     bu_disk_list_output = []
     bu_disk_list_ramdisk_instance = []
@@ -137,12 +150,12 @@ def cleanup_mountpoints(remount=True):
     if conf.bu_base_dir[0] == '/':
         bu_disk_list_ramdisk = [os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory)]
         bu_disk_list_output = [os.path.join(conf.bu_base_dir,conf.output_subdirectory)]
-        if conf.instance!="main":
+        if conf.instance=="main":
             bu_disk_list_ramdisk_instance = bu_disk_list_ramdisk
             bu_disk_list_output_instance = bu_disk_list_output
         else:
             bu_disk_list_ramdisk_instance = [os.path.join(bu_disk_list_ramdisk[0],conf.instance)]
-            bu_disk_list_output_instance = [os.path.join(bu_disk_list_output[0],conf,instance)]
+            bu_disk_list_output_instance = [os.path.join(bu_disk_list_output[0],conf.instance)]
  
         #make subdirectories if necessary and return
         if remount==True:
@@ -401,7 +414,7 @@ class system_monitor(threading.Thread):
                         dirstat = os.statvfs(conf.watch_directory)
                         fp=open(mfile,'w+')
                         fp.write('fm_date='+tstring+'\n')
-                        if cloud_mode:
+                        if cloud_mode==True:
                             #lie about enabled cores if cloud mode enabled, even if still processing
                             fp.write('idles=0\n')
                             fp.write('used=0\n')
@@ -412,7 +425,7 @@ class system_monitor(threading.Thread):
                             fp.write('broken='+str(len(os.listdir(broken)))+'\n')
 
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
-                        fp.write('cloud='+str(len(os.listdir(clouds)))+'\n')
+                        fp.write('cloud='+str(len(os.listdir(cloud)))+'\n')
                         fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
                         fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
                         #two lines with active runs (used to check file consistency)
@@ -1156,11 +1169,13 @@ class Run:
           writedoc = {}
           bu_lumis = []
           try:
-            bu_eols_files = filter( lambda x: x.endswith("_EoLS.jsn"),os.listdir(rawinputdir))
+            bu_eols_files = filter( lambda x: x.endswith("_EoLS.jsn"),os.listdir(self.rawinputdir))
             bu_lumis = (sorted([int(x.split('_')[1][2:]) for x in bu_eols_files]))
           except:
             logger.error("Unable to parse BU EoLS files")
-          if len(bu_lumis): writedoc['lastLS']=bu_lumis[-1]
+          if len(bu_lumis):
+              logger.info('last closed lumisection in ramdisk is '+str(bu_lumis[-1]))
+              writedoc['lastLS']=bu_lumis[-1]+2 #current+2
           else:  writedoc['lastLS']=2
           json.dump(writedoc,f)
         try:
@@ -1299,6 +1314,7 @@ class Run:
     def WaitForEnd(self):
         logger.info("wait for end thread!")
         global cloud_mode
+        global entering_cloud_mode
         try:
             for resource in self.online_resource_list:
                 resource.disableRestart()
@@ -1349,9 +1365,10 @@ class Run:
 
             if cloud_mode==True:
                 resource_lock.acquire()
-                if len(active_runs)>1:
+                if len(active_runs)>=1:
                     logger.info("VM mode: waiting for runs: "+str(active_runs)+" to finish")
                 else:
+                    logger.info("No active runs. moving all resource files to cloud")
                     #give resources to cloud and bail out
                     move_resources_to_cloud()
                     entering_cloud_mode=False 
@@ -1445,7 +1462,9 @@ class RunRanger:
     def process_IN_CREATE(self, event):
         nr=0
         global run_list
+        global active_runs
         global cloud_mode
+        global entering_cloud_mode
         logger.info('RunRanger: event '+event.fullpath)
         dirname=event.fullpath[event.fullpath.rfind("/")+1:]
         logger.info('RunRanger: new filename '+dirname)
@@ -1738,10 +1757,11 @@ class RunRanger:
                 logger.fatal("Unable to clear runs. Will not enter VM mode.")
                 logger.exception(ex)
                 cloud_mode=False
-                resource_lock.release()
+            resource_lock.release()
 
         elif dirname.startswith('include') and conf.role == 'fu':
             #TODO: pick up latest working run..
+            tries=1000
             if cloud_mode==True:
                 while True:
                     resource_lock.acquire()
@@ -1751,6 +1771,12 @@ class RunRanger:
                         break
                     resource_lock.release()
                     time.sleep(0.1)
+                    tries-=1
+                    if tries==0:
+                        logger.fatal("Timeout: taking resources from cloud after waiting for 100 seconds")
+                        cleanup_resources()
+                        entering_cloud_mode=False
+                        break
                     logger.warning("could not move all resources, retrying.")
                 cloud_mode=False
  
@@ -1982,7 +2008,10 @@ class hltd(Daemon2,object):
 
         #read configuration file
         setFromConf(self.instance)
-        logger.info("hltd start : instance " + self.instance)
+        logger.info(" ")
+        logger.info(" ")
+        logger.info("<<<< ---- hltd start : instance " + self.instance + " ---- >>>>")
+        logger.info(" ")
 
         if conf.enabled==False:
             logger.warning("Service is currently disabled.")
@@ -2089,6 +2118,8 @@ class hltd(Daemon2,object):
 
             logger.info("hltd serving at port "+str(conf.cgi_port)+" with role "+conf.role)
             os.chdir(watch_directory)
+            logger.info("<<<< ---- hltd instance " + self.instance + ": init complete, starting httpd ---- >>>>")
+            logger.info("")
             httpd.serve_forever()
         except KeyboardInterrupt:
             logger.info("terminating all ongoing runs")

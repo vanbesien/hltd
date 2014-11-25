@@ -279,7 +279,7 @@ class Daemon2:
         except:
             pass
 
-    def removeLockFile():
+    def removeLockFile(self):
         try:
             os.unlink(self.lockfile)
         except:
