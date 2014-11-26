@@ -54,7 +54,7 @@ class hltdConf:
         self.service_log_level = getattr(logging,self.service_log_level)
         self.autodetect_parameters()
 
-        #read cluster name from elastic search configuration file (used to specify index name)
+        #read cluster name from elastic search configuration file (if not set up directly)
         if not self.elastic_cluster and self.use_elasticsearch == True:
             f = None
             try:
@@ -76,7 +76,7 @@ class hltdConf:
         logging.info( '</CONFIGURATION>')
 
     def autodetect_parameters(self):
-        if not self.role and 'bu' in os.uname()[1]:
+        if not self.role and (os.uname()[1].startswith('bu-') or os.uname()[1].startswith('dvbu-')):
             self.role = 'bu'
         elif not self.role:
             self.role = 'fu'
