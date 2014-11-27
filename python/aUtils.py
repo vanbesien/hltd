@@ -12,7 +12,7 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,OUTPUTJSD,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PJSNDATA,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESLEGEND = range(26)            #file types 
+UNKNOWN,OUTPUTJSD,DEFINITION,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PJSNDATA,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESLEGEND = range(26)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
@@ -113,7 +113,7 @@ class fileHandler(object):
             if ext == ".jsndata" and "_PID" in name: return PJSNDATA
             if ext == ".ini" and "_PID" in name: return INI
             if ext == ".jsd" and "OUTPUT_" in name: return OUTPUTJSD
-            if ext == ".jsd" : return JSD
+            if ext == ".jsd" : return DEFINITION
             if ext == ".jsn":
                 if STREAMERRORNAME.upper() in name: return STREAMERR
                 elif "BOLS" in name : return BOLS
@@ -122,6 +122,7 @@ class fileHandler(object):
                 elif "CRASH" in name and "_PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
+                elif "TRANSFER_PSET" in name: return DEFINITION
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
             if "STREAM" in name and "_PID" not in name: return OUTPUT

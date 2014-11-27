@@ -105,8 +105,8 @@ class LumiSectionRanger():
         eventtype = self.eventtype
 
         if eventtype:# & inotify.IN_CLOSE_WRITE:
-            if filetype == JSD:
-                self.processJsdFile()
+            if filetype == DEFINITION:
+                self.processDefinitionFile()
             if filetype == OUTPUTJSD and not self.jsdfile:
                 self.jsdfile=self.infile.filepath
                 self.createEmptyOutputTemplate()
