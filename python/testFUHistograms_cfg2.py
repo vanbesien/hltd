@@ -280,6 +280,14 @@ process.ep1 = cms.EndPath( process.hltOutputA )
 process.p2 = cms.Path( process.ExceptionGenerator2 + process.HLTPrescaler )
 process.p1 = cms.Path( process.ExceptionGenerator + process.HLTPrescaler2 )
 
+process.transferSystem = cms.PSet(
+  destinations = cms.vstring("Tier0","DQM","ECAL","None"),
+  columns = cms.vstring("tier0_on","tier0_off","test"),
+  streamA = cms.PSet(tier0_on=cms.string( "Tier0" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
+  streamB = cms.PSet(tier0_on=cms.string( "None" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
+  streamDQM = cms.PSet(tier0_on=cms.string( "DQM" ),tier0_off=cms.string( "DQM" ),test=cms.string( "None" ))
+)
+
 import FWCore.ParameterSet.VarParsing as VarParsing 
 
 import os 

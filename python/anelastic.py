@@ -208,7 +208,7 @@ class LumiSectionRanger():
 
         self.createErrIniFile()
 
-    def processJsdFile(self):
+    def processDefinitionFile(self):
         run = 'run'+self.run_number.zfill(conf.run_number_padding)
         if "_pid" in self.infile.name:
           #name with pid: copy to local name without pid
