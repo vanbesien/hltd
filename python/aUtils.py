@@ -122,7 +122,7 @@ class fileHandler(object):
                 elif "CRASH" in name and "_PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
-                elif "TRANSFER_PSET" in name: return DEFINITION
+                elif "_TRANSFER" in name: return DEFINITION
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
             if "STREAM" in name and "_PID" not in name: return OUTPUT

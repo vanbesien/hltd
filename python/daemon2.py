@@ -17,21 +17,19 @@ class Daemon2:
     attn: May change in the near future to use PEP daemon
     """
 
-    def __init__(self, instance, processname, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+    def __init__(self, processname, instance, confname=None, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
                       self.stdin = stdin
                       self.stdout = stdout
                       self.stderr = stderr
-                      self.instance = instance
                       self.processname = processname
+                      self.instance = instance
+                      if confname==None:confname=processname
+                      if instance=="main": instsuffix=""
+                      else: instsuffix="-"+instance
 
-                      if instance=="main":
-                          self.pidfile = '/var/run/hltd.pid'
-                          self.conffile = '/etc/hltd.conf'
-                          self.lockfile = '/var/lock/subsys/hltd'
-                      else:
-                          self.pidfile = "/var/run/hltd-"+instance+".pid"
-                          self.conffile = "/etc/hltd-"+instance+".conf"
-                          self.lockfile = '/var/lock/subsys/hltd-'+instance
+                      self.pidfile = "/var/run/" + processname + instsuffix + ".pid"
+                      self.conffile = "/etc/" + confname + instsuffix + ".conf"
+                      self.lockfile = '/var/lock/subsys/'+processname + instsuffix
 
 
 
@@ -160,7 +158,7 @@ class Daemon2:
 
         return retval
 
-    def stop(self):
+    def stop(self,silent=False):
         """
         Stop the daemon
         """
@@ -173,12 +171,17 @@ class Daemon2:
             pid = None
 
         if not pid:
-            message = "pidfile %s does not exist. Daemon not running?\n"
-            sys.stderr.write(message % self.pidfile)
+            message = "pidfile %s does not exist. Daemon not running? [OK]\n"
+            sys.stdout.write(message % self.pidfile)
+            sys.stdout.flush()
             return # not an error in a restart
 
         # Try killing the daemon process
+        processPresent=False
         try:
+            #check is process is alive
+            os.kill(pid,0)
+            processPresent=True
             # signal the daemon to stop
             timeout = 5.0 #kill timeout
             os.kill(pid, SIGINT)
@@ -201,18 +204,24 @@ class Daemon2:
                 time.sleep(0.5)
                 timeout-=0.5
         except OSError, err:
+            time.sleep(.1)
             err = str(err)
             if err.find("No such process") > 0:
                 #this handles the successful stopping of the daemon...
+                if processPresent==False:
+                    sys.stdout.write("process "+str(pid)+" is dead. ")
                 if os.path.exists(self.pidfile):
-                    print 'removing pidfile'
-                    os.remove(self.pidfile)
-                    sys.stdout.write('[OK]\n')
+                    sys.stdout.write('removing pidfile' + self.pidfile+ " pid:" + str(pid))
+                    try:
+                        os.remove(self.pidfile)
+                        sys.stdout.write(' [OK]\n')
+                    except:
+                        sys.stdout.write(' [Failed]\n')
                     sys.stdout.flush()
             else:
-                print str(err)
+                sys.stdout.write(str(err) + ' [Failed]\n')
+                sys.stdout.flush()
                 sys.exit(1)
-        sys.stdout.write('[OK]\n')
 
     def restart(self):
         """

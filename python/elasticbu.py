@@ -129,8 +129,20 @@ class elasticBandBU:
             doc = {key:mapping[key]}
             res = requests.get(self.ip_url+'/'+index_name+'/'+key+'/_mapping')
             #only update if mapping is empty
-            if res.status_code==200 and res.content.strip()=='{}':
-                requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',json.dumps(doc))
+            if res.status_code==200:
+                if res.content.strip()=='{}':
+                    requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',json.dumps(doc))
+                else:
+                    #still check if number of properties is identical in each type
+                    inmapping = json.loads(res.content)
+                    for indexname in inmapping:
+                        properties = inmapping[indexname]['mappings'][key]['properties']
+                        #should be size 1
+                        for pdoc in properties:
+                            if pdoc not in mapping[key]['properties']:
+                                requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',json.dumps(doc))
+                            break
+                        break
 
     def resetURL(url):
         self.es = None

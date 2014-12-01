@@ -45,6 +45,7 @@ if [ -n "$1" ]; then
               exit 2
             fi
           fi
+          chmod 755 $image
           rm -rf $image
           if [ $? != 0 ]; then
             echo "Unsuccessful delete old image file $image"
@@ -57,6 +58,7 @@ if [ -n "$1" ]; then
           fi
         fi
     
+        chmod 555 $image
         dd if=/dev/zero of=$image bs=1048576 count=$sizemb >& /dev/null
         echo y | mkfs.ext3 $image > /dev/null
         #try mount

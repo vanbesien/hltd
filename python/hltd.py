@@ -2017,7 +2017,7 @@ class ResourceRanger:
 class hltd(Daemon2,object):
     def __init__(self, instance):
         self.instance=instance
-        Daemon2.__init__(self,instance,'hltd')
+        Daemon2.__init__(self,'hltd',instance,'hltd')
 
     def stop(self):
         #read configuration file

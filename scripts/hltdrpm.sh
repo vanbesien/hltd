@@ -210,8 +210,7 @@ rm \$RPM_BUILD_ROOT/opt/hltd/rpm/*.rpm
 /usr/lib64/python2.6/site-packages/pyelasticsearch
 %preun
 if [ \$1 == 0 ]; then
-  /sbin/service hltd stop
-  /sbin/service hltd stop
+  /sbin/service hltd stop || true
 fi
 EOF
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}

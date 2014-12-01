@@ -86,7 +86,7 @@ if [ ${#readin} != "0" ]; then
 lines[6]=$readin
 fi
 
-echo "Equipment set (press enter for: \"${lines[7]}\") - type 'latest' to use latest eq set or 'default' for default one or 'test' for VM enviroment:"
+echo "Equipment set (press enter for: \"${lines[7]}\") - type 'latest' or enter a specific one:"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then

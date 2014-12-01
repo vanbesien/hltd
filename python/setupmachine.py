@@ -37,12 +37,9 @@ dbsid = 'empty'
 dblogin = 'empty'
 dbpwd = 'empty'
 equipmentSet = 'latest'
-default_eqset_daq2val = 'eq_140325_attributes'
-#default_eqset_daq2 = 'eq_140430_mounttest'
-#default_eqset_daq2 = 'eq_14-508_emu'
-default_eqset_daq2 = 'eq_140522_emu'
-minidaq_list = ["bu-c2f13-25-01","bu-c2f13-27-01","fu-c2f13-19-01",
-                "fu-c2f13-19-02","fu-c2f13-19-03","fu-c2f13-19-04"]
+minidaq_list = ["bu-c2f13-21-01","bu-c2f13-23-01","bu-c2f13-25-01","bu-c2f13-27-01",
+                "fu-c2f13-17-01","fu-c2f13-17-02",
+                "fu-c2f13-19-01","fu-c2f13-19-02","fu-c2f13-19-03","fu-c2f13-19-04"]
 dqm_list = ["bu-c2f13-31-01","fu-c2f13-39-01","fu-c2f13-39-02",
             "fu-c2f13-39-03","fu-c2f13-39-04"]
 ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
@@ -106,12 +103,6 @@ def getBUAddr(parentTag,hostname):
     global equipmentSet
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
     #equipmentSet = 'eq_140325_attributes'
-
-    if equipmentSet == 'default':
-        if parentTag == 'daq2val':
-            equipmentSet = default_eqset_daq2val
-        if parentTag == 'daq2':
-            equipmentSet = default_eqset_daq2
 
     if env == "vm":
         con = MySQLdb.connect( host= dbhost, user = dblogin, passwd = dbpwd, db = dbsid)
@@ -186,12 +177,6 @@ def getSelfDataAddr(parentTag):
     global equipmentSet
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
     #equipmentSet = 'eq_140325_attributes'
-
-    if equipmentSet == 'default':
-        if parentTag == 'daq2val':
-            equipmentSet = default_eqset_daq2val
-        if parentTag == 'daq2':
-            equipmentSet = default_eqset_daq2
 
     con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
@@ -355,6 +340,14 @@ if __name__ == "__main__":
             except:
                 pass
 
+            #stop soap2file service on dqm and ed machines
+            if myhost in dqm_list or myhost in ed_list:
+                if myhost.startswith('bu-'):
+                    try:
+                        os.popen('/etc/init.d/soap2file stop')
+                    except Exception as ex:
+                        print "Failed to stop soap2file",str(ex)
+ 
         sys.exit(0)
 
     argvc += 1
@@ -456,6 +449,15 @@ if __name__ == "__main__":
         if myhost in minidaq_list:
             runindex_name = 'minidaq'
         if myhost in dqm_list or myhost in ed_list:
+
+            #run soap2file service on dqm and ed machines
+            if myhost.startswith('bu-'):
+                try:
+                    os.popen('/etc/init.d/soap2file restart')
+                except Exception as ex:
+                    print "Failed to stop soap2file",str(ex)
+ 
+
             use_elasticsearch = 'False'
             runindex_name = 'dqm'
             cmsswloglevel = 'DISABLED'
@@ -623,7 +625,8 @@ if __name__ == "__main__":
         #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
         try:
             subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
-            os.popen('rm -rf /fff/ramdisk/{run*,*.img}')
+            #os.popen('rm -rf /fff/ramdisk/{run*,*.img}')
+            os.popen('rm -rf /fff/ramdisk/run*')
         except subprocess.CalledProcessError, err1:
             print 'failed to cleanup ramdisk',err1
         except Exception as ex:

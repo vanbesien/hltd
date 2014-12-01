@@ -7,6 +7,7 @@ import os
 import pwd
 import sys
 import SOAPpy
+import time
 
 sys.path.append('/opt/hltd/python')
 sys.path.append('/opt/hltd/lib')
@@ -41,8 +42,8 @@ def createDirectory(dirname):
 
 class Soap2file(Daemon2):
 
-    def __init__(self,pidfile):
-        Daemon2.__init__(self,pidfile,'soap2file')
+    def __init__(self):
+        Daemon2.__init__(self,'soap2file','main','hltd')
         #SOAPpy.Config.debug = 1
         self._conf=hltdconf.hltdConf('/etc/hltd.conf')
         self._hostname = os.uname()[1]
@@ -59,29 +60,41 @@ class Soap2file(Daemon2):
 
 if __name__ == "__main__":
 
-    pidfile = '/var/run/soap2file.pid'
-    soap2file = Soap2file(pidfile)
+    soap2file = Soap2file()
 
     if len(sys.argv) == 2:
 
         if 'start' == sys.argv[1]:
+
             try:
                 soap2file.start()
+                time.sleep(.1)
                 if soap2file.silentStatus():
                     print '[OK]'
                 else:
                     print '[Failed]'
-            except:
-                pass
+                    sys.exit(1)
+            except Exception as ex:
+                print ex
+                sys.exit(1)
 
         elif 'stop' == sys.argv[1]:
-            if soap2file.status():
-                soap2file.stop()
-            elif os.path.exists(pidfile):
-                soap2file.delpid()
+            soap2file.stop()
+            soap2file.delpid()
 
         elif 'restart' == sys.argv[1]:
-            soap2file.restart()
+
+            try:
+                soap2file.restart()
+                time.sleep(.1)
+                if soap2file.silentStatus():
+                    print '[OK]'
+                else:
+                    print '[Failed]'
+                    sys.exit(1)
+            except Exception as ex:
+                print ex
+                sys.exit(1)
 
         elif 'status' == sys.argv[1]:
             soap2file.status()
@@ -89,7 +102,7 @@ if __name__ == "__main__":
         else:
             print "Unknown command"
             sys.exit(2)
-            sys.exit(0)
+        sys.exit(0)
     else:
         print "usage: %s start|stop|restart|status" % sys.argv[0]
         sys.exit(2)
