@@ -285,7 +285,9 @@ process.transferSystem = cms.PSet(
   transferModes = cms.vstring("tier0_on","tier0_off","test"),
   streamA = cms.PSet(tier0_on=cms.string( "Tier0" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
   streamB = cms.PSet(tier0_on=cms.string( "None" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
-  streamDQM = cms.PSet(tier0_on=cms.string( "DQM" ),tier0_off=cms.string( "DQM" ),test=cms.string( "None" ))
+  streamDQM = cms.PSet(tier0_on=cms.string( "DQM" ),tier0_off=cms.string( "DQM" ),test=cms.string( "None" )),
+  streamL1Rates = cms.PSet(tier0_on=cms.string( "Tier0" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
+  streamHLTRates = cms.PSet(tier0_on=cms.string( "Tier0" ),tier0_off=cms.string( "None" ),test=cms.string( "None" ))
 )
 
 import FWCore.ParameterSet.VarParsing as VarParsing 
