@@ -223,6 +223,8 @@ class elasticBandBU:
         if basename.startswith('bu') or basename.startswith('dvbu'):
             try:
                 document = infile.data
+                try:document.pop('id')
+                except:pass
                 #aggregation from FUs
                 document['idles']=0
                 document['used']=0
