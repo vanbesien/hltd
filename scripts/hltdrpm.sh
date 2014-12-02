@@ -42,9 +42,11 @@ mkdir -p etc/appliance/resources/cloud
 mkdir -p usr/lib64/python2.6/site-packages
 mkdir -p usr/lib64/python2.6/site-packages/pyelasticsearch
 ls
-mv $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
-mv $BASEDIR/python/soap2file $TOPDIR/etc/init.d/soap2file
+cp -r $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
+cp -r $BASEDIR/python/soap2file $TOPDIR/etc/init.d/soap2file
 cp -r $BASEDIR/* $TOPDIR/opt/hltd
+rm -rf $TOPDIR/opt/hltd/python/hltd
+rm -rf $TOPDIR/opt/hltd/python/soap2file
 cp -r $BASEDIR/etc/hltd.conf $TOPDIR/etc/
 cp -r $BASEDIR/etc/logrotate.d/hltd $TOPDIR/etc/logrotate.d/
 echo "working in $PWD"
