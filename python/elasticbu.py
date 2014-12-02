@@ -69,6 +69,7 @@ class elasticBandBU:
         self.ip_url=None
         self.updateIndexMaybe(self.runindex_name,self.runindex_write,self.runindex_read,mappings.central_es_settings,mappings.central_runindex_mapping)
         self.updateIndexMaybe(self.boxinfo_name,self.boxinfo_write,self.boxinfo_read,mappings.central_es_settings,mappings.central_boxinfo_mapping)
+        self.black_list=None
 
         #write run number document
         if runMode == True and self.stopping==False:
@@ -190,22 +191,25 @@ class elasticBandBU:
         basename = infile.basename
         self.logger.debug(basename)
         current_time = time.time()
-        black_list=[]
 
         if infile.data=={}:return
 
         #check box file against blacklist
-        try:
-           with open(os.path.join(self.conf.watch_directory,'appliance','blacklist'),"r") as fi:
-               try:
-                   black_list = json.load(fi)
-               except ValueError:
-                   #file is being written or corrupted
-                   return
-        except:
-            #blacklist is not present, do not filter
-            pass
-        if basename in black_list:return
+        if basename.startswith('bu') or self.black_list==None:
+            self.black_list=[]
+
+            try:
+                with open(os.path.join(self.conf.watch_directory,'appliance','blacklist'),"r") as fi:
+                    try:
+                        self.black_list = json.load(fi)
+                    except ValueError:
+                        #file is being written or corrupted
+                        return
+            except:
+                #blacklist file is not present, do not filter
+                pass
+
+        if basename in self.black_list:return
 
         if basename.startswith('fu'):
             try:
@@ -248,7 +252,7 @@ class elasticBandBU:
                     document['usedDataDir']+=int(d['usedDataDir'])
                     document['totalDataDir']+=int(d['totalDataDir'])
                     document['hosts'].append(key)
-                for blacklistedHost in black_list:
+                for blacklistedHost in self.black_list:
                     document['blacklistedHosts'].append(blacklistedHost)
                 self.index_documents('boxinfo_appliance',[document],bulk=False)
             except Exception as ex:
