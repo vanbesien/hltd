@@ -12,18 +12,29 @@ if [ -n "$1" ]; then
         ret=0
         umask 0
 
-        #some protection against removing 
+        #protect from going wrong
         if [ mountpoint == "/" ]; then exit 99; fi
         if [ mountpoint == "//" ]; then exit 99; fi
         if [ mountpoint == "/fff" ]; then exit 99; fi
+        if [ mountpoint == "/fff/" ]; then exit 99; fi
         if [ mountpoint == "/fff/ramdisk" ]; then exit 99; fi 
+        if [ mountpoint == "/fff/ramdisk/" ]; then exit 99; fi 
         if [ mountpoint == "fff/ramdisk" ]; then exit 99; fi 
+        if [ mountpoint == "fff/ramdisk/" ]; then exit 99; fi 
 
         echo "makeloop script invoked for creating loop device disk $2 in ${basedir} of size $3 MB"
 
         if [ -d $mountpoint ]; then
 
           var=`mount | grep $mountpoint | grep /dev/loop | awk '{print $3}'`
+
+          #prevent FUs from writing boxinfo files by moving directory away
+          mv $var/appliance $var/appliance-delete
+          if [ $? != 0 ]; then
+              sleep 0
+          else
+              sleep 1
+          fi
           echo "calling unmount $line"
 
           umount $var

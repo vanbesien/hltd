@@ -384,9 +384,13 @@ class system_monitor(threading.Thread):
         else:
             self.directory = [conf.watch_directory+'/appliance/boxes/']
         self.file = [x+self.hostname for x in self.directory]
-        for dir in self.directory:
+        for i,mydir in enumerate(self.directory):
             try:
-                os.makedirs(dir)
+                if conf.role=='fu' or os.path.exists(bu_disk_list_ramdisk_instance[i]):
+                    if not os.path.exists(mydir) and \
+                       not os.path.exists(os.path.join(bu_disk_list_ramdisk_instance[i],'appliance-delete')):
+                        time.sleep(5)
+                        os.makedirs(mydir)
             except OSError:
                 pass
         logger.info("system_monitor: rehash found the following BU disks")
@@ -401,7 +405,7 @@ class system_monitor(threading.Thread):
             res_path = os.path.join(conf.watch_directory,'appliance','resource_summary')
             selfhost = os.uname()[1]
             while self.running:
-#                logger.info('system monitor - running '+str(self.running))
+                logger.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
                 if suspended:continue
                 tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
@@ -424,52 +428,52 @@ class system_monitor(threading.Thread):
                         json.dump(res_doc,fp)
                     os.rename(res_path_temp,res_path)
 
-                fp = None
                 for mfile in self.file:
                     if conf.role == 'fu':
                         dirstat = os.statvfs(conf.watch_directory)
-                        fp=open(mfile,'w+')
-                        fp.write('fm_date='+tstring+'\n')
-                        if cloud_mode==True and entering_cloud_mode==True:
-                            #lie about cores in cloud if cloud mode enabled, even if still processing
-                            fp.write('idles=0\n')
-                            fp.write('used=0\n')
-                            fp.write('broken=0\n')
-                            fp.write('cloud='+str(len(os.listdir(cloud))+len(os.listdir(idles))+len(os.listdir(used))+len(os.listdir(broken)))+'\n')
-                        else:
-                            fp.write('idles='+str(len(os.listdir(idles)))+'\n')
-                            fp.write('used='+str(len(os.listdir(used)))+'\n')
-                            fp.write('broken='+str(len(os.listdir(broken)))+'\n')
-                            fp.write('cloud='+str(len(os.listdir(cloud)))+'\n')
+                        try:
+                            with open(mfile,'w+') as fp:
+                                fp.write('fm_date='+tstring+'\n')
+                                if cloud_mode==True and entering_cloud_mode==True:
+                                    #lie about cores in cloud if cloud mode enabled, even if still processing
+                                    fp.write('idles=0\n')
+                                    fp.write('used=0\n')
+                                    fp.write('broken=0\n')
+                                    fp.write('cloud='+str(len(os.listdir(cloud))+len(os.listdir(idles))+len(os.listdir(used))+len(os.listdir(broken)))+'\n')
+                                else:
+                                    fp.write('idles='+str(len(os.listdir(idles)))+'\n')
+                                    fp.write('used='+str(len(os.listdir(used)))+'\n')
+                                    fp.write('broken='+str(len(os.listdir(broken)))+'\n')
+                                    fp.write('cloud='+str(len(os.listdir(cloud)))+'\n')
 
-                        fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
-                        fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
-                        fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
-                        #two lines with active runs (used to check file consistency)
-                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
-                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
-                        fp.write('activeRunsErrors='+str(active_runs_errors).strip('[]')+'\n')
-                        fp.write('entriesComplete=True')
-                        fp.close()
+                                fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
+                                fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
+                                fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
+                                #two lines with active runs (used to check file consistency)
+                                fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                                fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                                fp.write('activeRunsErrors='+str(active_runs_errors).strip('[]')+'\n')
+                                fp.write('entriesComplete=True')
+                        except Exception as ex:
+                            logger.warning('boxinfo file write failed +'+str(ex))
+
                     if conf.role == 'bu':
                         ramdisk = os.statvfs(conf.watch_directory)
                         outdir = os.statvfs('/fff/output')
-                        fp=open(mfile,'w+')
-
-                        fp.write('fm_date='+tstring+'\n')
-                        fp.write('idles=0\n')
-                        fp.write('used=0\n')
-                        fp.write('broken=0\n')
-                        fp.write('quarantined=0\n')
-                        fp.write('cloud=0\n')
-                        fp.write('usedRamdisk='+str(((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)>>20)+'\n')
-                        fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize)>>20)+'\n')
-                        fp.write('usedOutput='+str(((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)>>20)+'\n')
-                        fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
-                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
-                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
-                        fp.write('entriesComplete=True')
-                        fp.close()
+                        with open(mfile,'w+') as fp:
+                            fp.write('fm_date='+tstring+'\n')
+                            fp.write('idles=0\n')
+                            fp.write('used=0\n')
+                            fp.write('broken=0\n')
+                            fp.write('quarantined=0\n')
+                            fp.write('cloud=0\n')
+                            fp.write('usedRamdisk='+str(((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)>>20)+'\n')
+                            fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize)>>20)+'\n')
+                            fp.write('usedOutput='+str(((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)>>20)+'\n')
+                            fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
+                            fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                            fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                            fp.write('entriesComplete=True')
 
                 if conf.role == 'bu':
                     mfile = conf.resource_base+'/disk.jsn'

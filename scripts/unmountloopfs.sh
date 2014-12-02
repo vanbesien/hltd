@@ -11,13 +11,31 @@ if [ -n "$1" ]; then
     #echo ${tokens[2]}
     printf %s "$var" | while IFS= read -r line
     do
+
+      #protect from going wrong
+      if [ $line == "/" ]; then continue; fi
+      if [ $line == "//" ]; then continue; fi
+      if [ $line == "/fff" ]; then continue; fi
+      if [ $line == "/fff/" ]; then continue; fi
+      if [ $line == "/fff/ramdisk" ]; then continue; fi
+      if [ $line == "/fff/ramdisk/" ]; then continue; fi
+      if [ $line == "fff/ramdisk" ]; then continue; fi
+      if [ $line == "fff/ramdisk/" ]; then continue; fi
+
+      #prevent FUs from writing boxinfo files by moving directory away
+      mv $line/appliance $line/appliance-delete
+      if [ $? != 0 ]; then
+          sleep 0
+      else
+          sleep 1
+      fi
       unmount $line
       if [ $? != 0 ]; then
         echo "Unsuccessful umount of ${basedir}/"
         exit 2
       fi
       image="${line}.img"
-      chmod 755 $img
+      chmod 755 $image
       rm -rf $image
       if [ $? != 0 ]; then
         echo "Unsuccessful delete old image file $image"
