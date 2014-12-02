@@ -4,13 +4,11 @@
 #
 
 import os
-import pwd
 import sys
 import SOAPpy
-import time
 
 sys.path.append('/opt/hltd/python')
-sys.path.append('/opt/hltd/lib')
+#sys.path.append('/opt/hltd/lib')
 
 import demote
 import hltdconf
@@ -59,51 +57,8 @@ class Soap2file(Daemon2):
 
 
 if __name__ == "__main__":
-
-    soap2file = Soap2file()
-
-    if len(sys.argv) == 2:
-
-        if 'start' == sys.argv[1]:
-
-            try:
-                soap2file.start()
-                time.sleep(.1)
-                if soap2file.silentStatus():
-                    print '[OK]'
-                else:
-                    print '[Failed]'
-                    sys.exit(1)
-            except Exception as ex:
-                print ex
-                sys.exit(1)
-
-        elif 'stop' == sys.argv[1]:
-            soap2file.stop()
-            soap2file.delpid()
-
-        elif 'restart' == sys.argv[1]:
-
-            try:
-                soap2file.restart()
-                time.sleep(.1)
-                if soap2file.silentStatus():
-                    print '[OK]'
-                else:
-                    print '[Failed]'
-                    sys.exit(1)
-            except Exception as ex:
-                print ex
-                sys.exit(1)
-
-        elif 'status' == sys.argv[1]:
-            soap2file.status()
-
-        else:
-            print "Unknown command"
-            sys.exit(2)
-        sys.exit(0)
-    else:
-        print "usage: %s start|stop|restart|status" % sys.argv[0]
-        sys.exit(2)
+    daemon = Soap2file()
+    import procname
+    procname.setprocname('soap2file')
+    daemon.start()
 

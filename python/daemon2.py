@@ -24,8 +24,12 @@ class Daemon2:
                       self.processname = processname
                       self.instance = instance
                       if confname==None:confname=processname
-                      if instance=="main": instsuffix=""
-                      else: instsuffix="-"+instance
+                      if instance=="main": 
+                          instsuffix=""
+                          self.instancemsg=""
+                      else:
+                          instsuffix="-"+instance
+                          self.instancemsg=" instance"+instance
 
                       self.pidfile = "/var/run/" + processname + instsuffix + ".pid"
                       self.conffile = "/etc/" + confname + instsuffix + ".conf"
@@ -89,7 +93,10 @@ class Daemon2:
         """
         Start the daemon
         """
-        if not os.path.exists(self.conffile): raise Exception("Missing "+self.conffile)
+        if not os.path.exists(self.conffile): 
+            print "Missing "+self.conffile+" - can not start instance"
+            #raise Exception("Missing "+self.conffile)
+            sys.exit(4)
         # Check for a pidfile to see if the daemon already runs
 
         try:
@@ -102,7 +109,7 @@ class Daemon2:
         if pid:
             message = "pidfile %s already exists. Daemon already running?\n"
             sys.stderr.write(message % self.pidfile)
-            sys.exit(1)
+            sys.exit(3)
         # Start the daemon
         ret = self.daemonize()
         if ret == 0:
@@ -123,16 +130,22 @@ class Daemon2:
         except IOError:
             pid = None
         if not pid:
-            message = self.processname+" not running, no pidfile %s\n"
+            message = self.processname + self.instancemsg +" not running, no pidfile %s\n"
         else:
             try:
                 os.kill(pid,0)
-                message = self.processname+" is running with pidfile %s\n"
+                message = self.processname + self.instancemsg + " is running with pidfile %s\n"
                 retval = True
+            except OSError as ex:
+                if ex.errno==1:
+                    message = self.processname + self.instancemsg + " is running with pidfile %s\n"
+                else:
+                    message = self.processname + self.instancemsg + " pid exist in %s but process is not running\n"
             except:
-                message = self.processname+" pid exist in %s but process is not running\n"
+                message = self.processname + self.instancemsg + " pid exist in %s but process is not running\n"
+                #should return true for puppet to detect service crash (also when stopped)
 
-        sys.stderr.write(message % self.pidfile)
+        sys.stdout.write(message % self.pidfile)
         return retval
 
     def silentStatus(self):
@@ -148,7 +161,7 @@ class Daemon2:
         except IOError:
             pid = None
         if not pid:
-            message = self.processname+" not running, no pidfile %s\n"
+            message = self.processname + self.instancemsg +" not running, no pidfile %s\n"
         else:
             try:
                 os.kill(pid,0)
@@ -158,7 +171,7 @@ class Daemon2:
 
         return retval
 
-    def stop(self,silent=False):
+    def stop(self):
         """
         Stop the daemon
         """
@@ -171,7 +184,7 @@ class Daemon2:
             pid = None
 
         if not pid:
-            message = "pidfile %s does not exist. Daemon not running? [OK]\n"
+            message = " not running, no pidfile %s\n"
             sys.stdout.write(message % self.pidfile)
             sys.stdout.flush()
             return # not an error in a restart
@@ -182,6 +195,7 @@ class Daemon2:
             #check is process is alive
             os.kill(pid,0)
             processPresent=True
+            sys.stdout.flush()
             # signal the daemon to stop
             timeout = 5.0 #kill timeout
             os.kill(pid, SIGINT)
@@ -208,20 +222,26 @@ class Daemon2:
             err = str(err)
             if err.find("No such process") > 0:
                 #this handles the successful stopping of the daemon...
-                if processPresent==False:
-                    sys.stdout.write("process "+str(pid)+" is dead. ")
                 if os.path.exists(self.pidfile):
-                    sys.stdout.write('removing pidfile' + self.pidfile+ " pid:" + str(pid))
+                    if processPresent==False:
+                        sys.stdout.write(" process "+str(pid)+" is dead. Removing pidfile" + self.pidfile+ " pid:" + str(pid))
                     try:
                         os.remove(self.pidfile)
-                        sys.stdout.write(' [OK]\n')
-                    except:
-                        sys.stdout.write(' [Failed]\n')
-                    sys.stdout.flush()
+                    except Exception as ex:
+                        sys.stdout.write(' [  \033[1;31mFAILED\033[0;39m  ]\n')
+                        sys.stderr.write(str(ex)+'\n')
+                        sys.exit(1)
+                elif not os.path.exists(self.pidfile):
+                    if processPresent==False:
+                        sys.stdout.write(' service is not running')
             else:
-                sys.stdout.write(str(err) + ' [Failed]\n')
-                sys.stdout.flush()
+                sys.stdout.write(' [  \033[1;31mFAILED\033[0;39m  ]\n')
+                sys.stderr.write(str(err)+'\n')
                 sys.exit(1)
+
+        if (self.processname!="hltd"):sys.stdout.write("\t\t")
+        sys.stdout.write('\t\t\t [  \033[1;32mOK\033[0;39m  ]\n')
+        sys.stdout.flush()
 
     def restart(self):
         """

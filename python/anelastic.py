@@ -850,6 +850,9 @@ class DQMMerger(threading.Thread):
 
 if __name__ == "__main__":
 
+    import procname
+    procname.setprocname('anelastic')
+
     conf=initConf()
 
     logging.basicConfig(filename=os.path.join(conf.log_dir,"anelastic.log"),

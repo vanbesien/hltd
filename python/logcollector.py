@@ -952,6 +952,9 @@ def registerSignal(eventRef):
 
 if __name__ == "__main__":
 
+    import procname
+    procname.setprocname('logcollector')
+
     conf=initConf(sys.argv[1])
 
     logging.basicConfig(filename=os.path.join(conf.log_dir,"logcollector.log"),

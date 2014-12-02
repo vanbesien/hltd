@@ -665,6 +665,9 @@ class RunCompletedChecker(threading.Thread):
 
 if __name__ == "__main__":
 
+    import procname
+    procname.setprocname('elasticbu')
+
     conf=initConf(sys.argv[1])
 
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),

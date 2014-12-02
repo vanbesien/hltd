@@ -455,7 +455,7 @@ if __name__ == "__main__":
                 try:
                     os.popen('/etc/init.d/soap2file restart')
                 except Exception as ex:
-                    print "Failed to stop soap2file",str(ex)
+                    print "Failed to start soap2file",str(ex)
  
 
             use_elasticsearch = 'False'

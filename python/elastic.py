@@ -146,6 +146,9 @@ class elasticCollector():
 
 if __name__ == "__main__":
 
+    import procname
+    procname.setprocname('elastic')
+
     conf=initConf()
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elastic.log"),
                     level=conf.service_log_level,

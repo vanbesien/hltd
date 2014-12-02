@@ -2021,7 +2021,11 @@ class hltd(Daemon2,object):
 
     def stop(self):
         #read configuration file
-        setFromConf(self.instance)
+        try:
+            setFromConf(self.instance)
+        except Exception as ex:
+            print " CONFIGURATION error:",str(ex),"(check configuration file) [  \033[1;31mFAILED\033[0;39m  ]"
+            sys.exit(4)
 
         if self.silentStatus():
             try:
@@ -2032,13 +2036,18 @@ class hltd(Daemon2,object):
                 count = 10
                 while count:
                     os.stat(conf.watch_directory+'/populationcontrol')
-                    sys.stdout.write('o.o')
+                    if count==10:
+                      sys.stdout.write(' o.o')
+                    else:
+                      sys.stdout.write('o.o')
                     sys.stdout.flush()
-                    time.sleep(1.)
+                    time.sleep(.5)
                     count-=1
             except OSError, err:
+                time.sleep(.1)
                 pass
             except IOError, err:
+                time.sleep(.1)
                 pass
         super(hltd,self).stop()
 
@@ -2202,5 +2211,7 @@ class hltd(Daemon2,object):
 
 
 if __name__ == "__main__":
+    import procname
+    procname.setprocname('hltd')
     daemon = hltd(sys.argv[1])
     daemon.start()

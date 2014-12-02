@@ -42,8 +42,8 @@ mkdir -p etc/appliance/resources/cloud
 mkdir -p usr/lib64/python2.6/site-packages
 mkdir -p usr/lib64/python2.6/site-packages/pyelasticsearch
 ls
-cp -r $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
-cp -r $BASEDIR/python/soap2file.py $TOPDIR/etc/init.d/soap2file
+mv $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
+mv $BASEDIR/python/soap2file $TOPDIR/etc/init.d/soap2file
 cp -r $BASEDIR/* $TOPDIR/opt/hltd
 cp -r $BASEDIR/etc/hltd.conf $TOPDIR/etc/
 cp -r $BASEDIR/etc/logrotate.d/hltd $TOPDIR/etc/logrotate.d/
@@ -152,6 +152,12 @@ Classifier: Topic :: System :: Filesystems
 Classifier: Topic :: System :: Monitoring
 EOF
 
+
+cd $TOPDIR
+cd opt/hltd/lib/python-procname/
+./setup.py -q build
+cp build/lib.linux-x86_64-2.6/procname.so $TOPDIR/usr/lib64/python2.6/site-packages
+
 cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
@@ -208,9 +214,11 @@ rm \$RPM_BUILD_ROOT/opt/hltd/rpm/*.rpm
 /usr/lib64/python2.6/site-packages/*_inotify.so*
 /usr/lib64/python2.6/site-packages/*python_inotify*
 /usr/lib64/python2.6/site-packages/pyelasticsearch
+/usr/lib64/python2.6/site-packages/procname.so
 %preun
 if [ \$1 == 0 ]; then
   /sbin/service hltd stop || true
+  /sbin/service soap2file stop || true
 fi
 EOF
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
