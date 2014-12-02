@@ -179,6 +179,11 @@ def cleanup_mountpoints(remount=True):
         logger.info(mounts)
         umount_failure=False
         for point in mounts:
+
+            try:
+                #try to unmount old style mountpoint(ok if fails)
+                subprocess.check_call(['umount','/'+point])
+            except:pass
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
             except subprocess.CalledProcessError, err1:
@@ -324,9 +329,12 @@ def calculate_threadnumber():
     expected_processes = idlecount/nstreams
 
 def updateBlacklist(parseOnly=False):
+    #FU can be blacklisted by putting the name in /etc/appliance/blacklist on BU
+    #this will be disabled once a blacklist DB is used
     black_list=[]
     active_black_list=[]
     if conf.role=='bu':
+        #TODO:have mandatory check in blacklist DB
         try:
             os.stat('/etc/appliance/blacklist')
             with open('/etc/appliance/blacklist','r') as fi:
@@ -339,7 +347,6 @@ def updateBlacklist(parseOnly=False):
         except:
             #no blacklist file, this is ok
             pass
-        #TODO:have mandatory check in blacklist DB
         try:
             forceUpdate=False
             with open(os.path.join(conf.watch_directory,'appliance','blacklist'),'r') as fi:
@@ -397,6 +404,7 @@ class system_monitor(threading.Thread):
                 #TODO:multiple mount points on BU
                 if conf.role == 'bu':
                     resource_count = 0
+                    cloud_count = 0
                     current_time = time.time()
                     for key in boxinfoFUMap:
                         if key==selfhost:continue
@@ -405,7 +413,8 @@ class system_monitor(threading.Thread):
                         resource_count+=int(entry[0]['idles'])
                         resource_count+=int(entry[0]['used'])
                         resource_count+=int(entry[0]['broken'])
-                    res_doc = {"resources":resource_count}
+                        cloud_count+=int(entry[0]['cloud'])
+                    res_doc = {"resources":resource_count,"cloud":cloud_count}
                     with open(res_path_temp,'w') as fp:
                         json.dump(res_doc,fp)
                     os.rename(res_path_temp,res_path)
