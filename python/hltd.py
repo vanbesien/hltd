@@ -228,6 +228,7 @@ def cleanup_mountpoints(remount=True):
         i = 0
         bus_config = os.path.join(os.path.dirname(conf.resource_base.rstrip(os.path.sep)),'bus.config')
         if os.path.exists(bus_config):
+            busconfig_age = os.path.getmtime(bus_config)
             for line in open(bus_config):
                 logger.info("found BU to mount at "+line.strip())
                 try:
@@ -252,10 +253,14 @@ def cleanup_mountpoints(remount=True):
                         if dt.seconds < 10:
                             time.sleep(10-dt.seconds)
                     attemptsLeft-=1
-                if attemptsLeft==0:
-                    logger.fatal('hltd was unable to ping BU '+line.strip())
-                    sys.exit(1)
-                else:
+                    if attemptsLeft==0:
+                        logger.fatal('hltd was unable to ping BU '+line.strip())
+                        #check if bus.config has been updated
+                        if (os.path.getmtime(bus_config) - busconfig_age)>1:
+                            return cleanup_mountpoints(remount)
+                        attemptsLeft=8
+                        #sys.exit(1)
+                if True:
                     logger.info("trying to mount "+line.strip()+':/fff/'+conf.ramdisk_subdirectory+' '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                     try:
                         subprocess.check_call(
@@ -1780,7 +1785,7 @@ class RunRanger:
                     try:
                        logger.info('Failed to contact BU hltd service: ' + str(ex.args[0]) +" "+ str(ex.args[1]))
                     except:
-                       logger.info('Failed to contact BU hltd service: ')
+                       logger.info('Failed to contact BU hltd service '+str(ex))
                     time.sleep(5)
 
             #mount again
