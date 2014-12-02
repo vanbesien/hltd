@@ -29,7 +29,6 @@ def writeToFile(filename,content,overwrite):
     except IOError as ex:
         return "Failed to write data: "+str(ex)
 
-
 def createDirectory(dirname):
     try:
         os.mkdir(dirname)
@@ -37,6 +36,12 @@ def createDirectory(dirname):
     except OSError as ex:
         return "Failed to create directory: "+str(ex)
 
+def renamePath(oldpath,newpath):
+    try:
+        os.rename(oldpath,newpath)
+        return "Success"
+    except Exception as ex:
+        return  "Failed to rename file: "+str(ex)
 
 class Soap2file(Daemon2):
 
@@ -46,6 +51,10 @@ class Soap2file(Daemon2):
         self._conf=hltdconf.hltdConf('/etc/hltd.conf')
         self._hostname = os.uname()[1]
 
+    def checkEnabled():
+        if self._conf.soap2file_port>0:return True
+        return False
+
     def run(self):
         dem = demote.demote(self._conf.user)
         dem()
@@ -53,6 +62,7 @@ class Soap2file(Daemon2):
         server = SOAPpy.SOAPServer((self._hostname, self._conf.soap2file_port))
         server.registerFunction(writeToFile)
         server.registerFunction(createDirectory)
+        server.registerFunction(renamePath)
         server.serve_forever()
 
 

@@ -339,15 +339,6 @@ if __name__ == "__main__":
                 os.remove(os.path.join(backup_dir,os.path.basename(busconfig)))
             except:
                 pass
-
-            #stop soap2file service on dqm and ed machines
-            if myhost in dqm_list or myhost in ed_list:
-                if myhost.startswith('bu-'):
-                    try:
-                        os.popen('/etc/init.d/soap2file stop')
-                    except Exception as ex:
-                        print "Failed to stop soap2file",str(ex)
- 
         sys.exit(0)
 
     argvc += 1
@@ -442,6 +433,7 @@ if __name__ == "__main__":
     dqmmachine = 'False'
     execdir = '/opt/hltd'
     resourcefract = '0.5'
+
     if cluster == 'daq2val':
         runindex_name = 'dv'        
     elif cluster == 'daq2':
@@ -449,14 +441,6 @@ if __name__ == "__main__":
         if myhost in minidaq_list:
             runindex_name = 'minidaq'
         if myhost in dqm_list or myhost in ed_list:
-
-            #run soap2file service on dqm and ed machines
-            if myhost.startswith('bu-'):
-                try:
-                    os.popen('/etc/init.d/soap2file restart')
-                except Exception as ex:
-                    print "Failed to start soap2file",str(ex)
- 
 
             use_elasticsearch = 'False'
             runindex_name = 'dqm'
@@ -625,7 +609,6 @@ if __name__ == "__main__":
         #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
         try:
             subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
-            #os.popen('rm -rf /fff/ramdisk/{run*,*.img}')
             os.popen('rm -rf /fff/ramdisk/run*')
         except subprocess.CalledProcessError, err1:
             print 'failed to cleanup ramdisk',err1
@@ -656,7 +639,13 @@ if __name__ == "__main__":
                 subprocess.check_call(['/opt/hltd/scripts/makeloopfs.sh','/fff/ramdisk',instance, str(sizes[idx])])
             except subprocess.CalledProcessError, err1:
                 print 'failed to configure loopback device mount in ramdisk'
-            
+
+
+          soap2file_port='0'
+ 
+          if myhost in dqm_list or myhost in ed_list or cluster == 'daq2val':
+              soap2file_port='8010'
+
           hltdcfg = FileManager(cfile,'=',hltdEdited,' ',' ')
 
           hltdcfg.reg('enabled','True','[General]')
@@ -667,6 +656,7 @@ if __name__ == "__main__":
           #port for multiple instances
           hltdcfg.reg('cgi_port',str(cgibase+idx),'[Web]')
           hltdcfg.reg('cgi_instance_port_offset',str(idx),'[Web]')
+          hltdcfg.reg('soap2file_port',soap2file_port,'[Web]')
 
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('watch_directory',watch_dir_bu,'[General]')
@@ -698,6 +688,7 @@ if __name__ == "__main__":
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cgi_port','9000','[Web]')
           hltdcfg.reg('cgi_instance_port_offset',"0",'[Web]')
+          hltdcfg.reg('soap2file_port','0','[Web]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')

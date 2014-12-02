@@ -280,6 +280,7 @@ else
 /sbin/service hltd stop || true
 fi
 rm -rf /etc/hltd.instances
+/sbin/service soap2file stop || true
 python2.6 /opt/fff/setupmachine.py restore,hltd
 python2.6 /opt/fff/setupmachine.py hltd $params
 
@@ -301,11 +302,13 @@ if [ -f /etc/hltd.instances ]; then
 else
   /sbin/service hltd restart
 fi
+/sbin/service soap2file restart || true
 
 chkconfig --del hltd
-#chkconfig --del soap2file
+chkconfig --del soap2file
+
 chkconfig --add hltd
-#chkconfig --add soap2file
+chkconfig --add soap2file
 %preun
 
 if [ \$1 == 0 ]; then 
@@ -313,7 +316,7 @@ if [ \$1 == 0 ]; then
   chkconfig --del fffmeta
   chkconfig --del elasticsearch
   chkconfig --del hltd
-#  chkconfig --del soap2file
+  chkconfig --del soap2file
 
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true

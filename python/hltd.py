@@ -298,7 +298,7 @@ def cleanup_mountpoints(remount=True):
                 i+=1
         #clean up suspended state
         try:
-            if remount==True:os.unlink(conf.watch_directory+'/suspend')
+            if remount==True:os.popen('rm -rf '+conf.watch_directory+'/suspend*')
         except:pass
     except Exception as ex:
         logger.error("Exception in cleanup_mountpoints")
