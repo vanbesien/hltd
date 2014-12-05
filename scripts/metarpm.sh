@@ -166,7 +166,7 @@ cd $TOPDIR
 cat > fffmeta.spec <<EOF
 Name: $PACKAGENAME
 Version: 1.5.3
-Release: 4
+Release: 6
 Summary: hlt daemon
 License: gpl
 Group: DAQ

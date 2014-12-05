@@ -38,8 +38,9 @@ default_eqset_daq2val = 'eq_140325_attributes'
 #default_eqset_daq2 = 'eq_140430_mounttest'
 #default_eqset_daq2 = 'eq_14-508_emu'
 default_eqset_daq2 = 'eq_140522_emu'
-minidaq_list = ["bu-c2f13-25-01","bu-c2f13-27-01","fu-c2f13-19-01",
-                "fu-c2f13-19-02","fu-c2f13-19-03","fu-c2f13-19-04"]
+minidaq_list = ["bu-c2f13-21-01","bu-c2f13-23-01","bu-c2f13-25-01","bu-c2f13-27-01",
+                "fu-c2f13-17-01","fu-c2f13-17-02","fu-c2f13-17-03","fu-c2f13-17-04"
+                "fu-c2f13-19-01","fu-c2f13-19-02","fu-c2f13-19-03","fu-c2f13-19-04"]
 dqm_list = ["bu-c2f13-31-01","fu-c2f13-39-01","fu-c2f13-39-02",
             "fu-c2f13-39-03","fu-c2f13-39-04"]
 ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
