@@ -283,11 +283,12 @@ process.p1 = cms.Path( process.ExceptionGenerator + process.HLTPrescaler2 )
 process.transferSystem = cms.PSet(
   destinations = cms.vstring("Tier0","DQM","ECAL","None"),
   transferModes = cms.vstring("tier0_on","tier0_off","test"),
-  streamA = cms.PSet(tier0_on=cms.string( "Tier0" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
-  streamB = cms.PSet(tier0_on=cms.string( "None" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
-  streamDQM = cms.PSet(tier0_on=cms.string( "DQM" ),tier0_off=cms.string( "DQM" ),test=cms.string( "None" )),
-  streamL1Rates = cms.PSet(tier0_on=cms.string( "Tier0" ),tier0_off=cms.string( "None" ),test=cms.string( "None" )),
-  streamHLTRates = cms.PSet(tier0_on=cms.string( "Tier0" ),tier0_off=cms.string( "None" ),test=cms.string( "None" ))
+  streamA = cms.PSet(tier0_on=cms.vstring( "Tier0" ),tier0_off=cms.vstring( "None" ),test=cms.vstring( "None" )),
+  streamB = cms.PSet(tier0_on=cms.vstring( "None" ),tier0_off=cms.vstring( "None" ),test=cms.vstring( "None" )),
+  streamDQM = cms.PSet(tier0_on=cms.vstring( "DQM","Tier0" ),tier0_off=cms.vstring( "DQM" ),test=cms.vstring( "None" )),
+  streamL1Rates = cms.PSet(tier0_on=cms.vstring( "Tier0" ),tier0_off=cms.vstring( "None" ),test=cms.vstring( "None" )),
+  streamHLTRates = cms.PSet(tier0_on=cms.vstring( "Tier0" ),tier0_off=cms.vstring( "None" ),test=cms.vstring( "None" )),
+  streamDQMHistograms = cms.PSet(tier0_on=cms.vstring( "DQM" ),tier0_off=cms.vstring( "DQM" ),test=cms.vstring( "None" ))
 )
 
 import FWCore.ParameterSet.VarParsing as VarParsing 
