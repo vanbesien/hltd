@@ -1,0 +1,28 @@
+#daq2val testing
+{
+  "dvbu-c2f34-30-01":
+  {
+    "names":["main","test0"],
+    "sizes":[20,30]
+  },
+  "dvrubu-c2f34-17-01":
+  {
+    "names":["test0"],
+    "sizes":[0]
+  },
+  "dvrubu-c2f34-17-02":
+  {
+    "names":["test0"],
+    "sizes":[0]
+  },
+  "dvrubu-c2f34-17-03":
+  {
+    "names":["test0"],
+    "sizes":[0]
+  },
+  "dvrubu-c2f34-17-04":
+  {
+    "names":["test0"],
+    "sizes":[0]
+  }
+}
