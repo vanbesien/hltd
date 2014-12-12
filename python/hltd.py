@@ -21,6 +21,7 @@ import demote
 import re
 import shutil
 import socket
+import random
 
 #modules distributed with hltd
 import prctl
@@ -383,16 +384,16 @@ class system_monitor(threading.Thread):
             self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list_ramdisk_instance]
         else:
             self.directory = [conf.watch_directory+'/appliance/boxes/']
-        self.file = [x+self.hostname for x in self.directory]
-        for i,mydir in enumerate(self.directory):
             try:
-                if conf.role=='fu' or os.path.exists(bu_disk_list_ramdisk_instance[i]):
-                    if not os.path.exists(mydir) and \
-                       not os.path.exists(os.path.join(bu_disk_list_ramdisk_instance[i],'appliance-delete')):
-                        time.sleep(5)
-                        os.makedirs(mydir)
+                #if directory does not exist: check if it is renamed to specific name (non-main instance)
+                if not os.path.exists(self.directory[0]) \
+                    and (not os.path.exists(os.path.join(conf.watch_directory,'appliance-delete/boxes')) or conf.instance=="main"):
+                    os.makedirs(self.directory[0])
             except OSError:
                 pass
+
+        self.file = [x+self.hostname for x in self.directory]
+
         logger.info("system_monitor: rehash found the following BU disks")
         for disk in self.file:
             logger.info(disk)
@@ -988,7 +989,7 @@ class Run:
             except Exception, ex:
                 logger.error("could not create mon dir inside the run input directory")
         else:
-            self.rawinputdir= os.path.join(bu_disk_list_ramdisk_instance[0],'run' + str(self.runnumber).zfill(conf.run_number_padding))
+            self.rawinputdir= os.path.join(random.choice(bu_disk_list_ramdisk_instance),'run' + str(self.runnumber).zfill(conf.run_number_padding))
 
         self.lock = threading.Lock()
 
@@ -1012,7 +1013,7 @@ class Run:
         if conf.role == "fu" and conf.dqm_machine==False:
             try:
                 logger.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir,bu_disk_list_output_instance[0]]
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir,random.choice(bu_disk_list_output_instance)]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
@@ -1545,7 +1546,7 @@ class RunRanger:
                             logger.fatal("failed to disable VM mode when receiving notification for run "+str(nr))
                             logger.exception(ex)
                     if conf.role == 'fu':
-                        bu_dir = bu_disk_list_ramdisk_instance[0]+'/'+dirname
+                        bu_dir = random.choice(bu_disk_list_ramdisk_instance)+'/'+dirname
                         try:
                             os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
                         except:

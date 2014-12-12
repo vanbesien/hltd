@@ -85,7 +85,7 @@ def checkModifiedConfigInFile(file):
     else:zone=tzones[0]
 
     for l in lines:
-        if l.strip().startswith("#edited by fff meta rpm at "+getTimeString()):
+        if l.strip().startswith("#edited by fff meta rpm"):
             return True
     return False
     
@@ -93,7 +93,7 @@ def checkModifiedConfigInFile(file):
 
 def checkModifiedConfig(lines):
     for l in lines:
-        if l.strip().startswith("#edited by fff meta rpm at "+getTimeString()):
+        if l.strip().startswith("#edited by fff meta rpm"):
             return True
     return False
     
@@ -249,7 +249,7 @@ class FileManager:
     def commit(self):
         out = []
         if self.edited  == False:
-            out.append('#edited by fff meta rpm\n')
+            out.append('#edited by fff meta rpm at '+getTimeString())
 
         #first removing elements
         for rm in self.remove:
@@ -288,6 +288,8 @@ class FileManager:
                 if insertionDone == False:
                     self.lines.append(toAdd)
         for l in self.lines:
+            #already written
+            if l.startswith("#edited by fff meta rpm"):continue
             out.append(l)
         #print "file ",self.name,"\n\n"
         #for o in out: print o
@@ -603,19 +605,21 @@ if __name__ == "__main__":
         shutil.copy(hltdconf,os.path.join(backup_dir,os.path.basename(hltdconf)))
 
       if type=='bu':
-
         try:os.remove('/etc/hltd.instances')
         except:pass
-        #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
-        try:
-            subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
-            os.popen('rm -rf /fff/ramdisk/run*')
-        except subprocess.CalledProcessError, err1:
-            print 'failed to cleanup ramdisk',err1
-        except Exception as ex:
-            print 'failed to cleanup ramdisk',ex
+          #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
+          try:
+              subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
+              #delete existing run directories only if this machine will have non-default instances
+              if instances!=["main"]:
+                os.popen('rm -rf /fff/ramdisk/run*')
+          except subprocess.CalledProcessError, err1:
+              print 'failed to cleanup ramdisk',err1
+          except Exception as ex:
+              print 'failed to cleanup ramdisk',ex
  
         cgibase=9000
+
         for idx,val in enumerate(instances):
           if idx!=0 and val=='main':
             instances[idx]=instances[0]
@@ -634,12 +638,12 @@ if __name__ == "__main__":
             watch_dir_bu = os.path.join(watch_dir_bu,instance)
             out_dir_bu = os.path.join(out_dir_bu,instance)
             log_dir_bu = os.path.join(log_dir_bu,instance)
-            #run loopback setup for non-main instances
+
+            #run loopback setup for non-main instances (is done on every boot since ramdisk is volatile)
             try:
                 subprocess.check_call(['/opt/hltd/scripts/makeloopfs.sh','/fff/ramdisk',instance, str(sizes[idx])])
             except subprocess.CalledProcessError, err1:
                 print 'failed to configure loopback device mount in ramdisk'
-
 
           soap2file_port='0'
  

@@ -7,7 +7,7 @@ echo "Usage: please provide path name for which to kill all processes keeping it
 echo ""
 exit 1
 fi
-killpid=`lsof $1 | awk -v N=$2 '{print $2}' | grep -v PID`
+killpid=`lsof $1 | awk -v N=dummy '{print $2}' | grep -v PID`
 if [[ $killpid != "" ]]; then
 echo "$1 is being used by: $killpid. Trying to kill these processes."
 myarr=($killpid)

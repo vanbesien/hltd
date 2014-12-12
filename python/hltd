@@ -31,9 +31,7 @@ def startService(daemon,srvInstance):
 
 if __name__ == "__main__":
 
-  if len(sys.argv) <=2 or sys.argv[2]=="main":
-      instances = ["main"]
-  elif sys.argv[2]=="all":
+  if len(sys.argv) <=2 or sys.argv[2]=="all":
       try:
           instances=[]
           with open('/etc/hltd.instances','r') as fi:

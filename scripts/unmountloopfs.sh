@@ -4,48 +4,77 @@ if [ -n "$1" ]; then
 
     basedir=`readlink -e $1`
     umask 0
-    var=`mount | grep $basedir/ | grep /dev/loop | awk '{print $3}'`
+    points=`mount | grep $basedir/ | grep /dev/loop | awk '{print $3}'`
     imgs=`mount | grep $basedir/ | grep /dev/loop | awk '{print $1}'`
-    vararr=( $var )
+    pointarr=( $points )
     imgarr=( $imgs )
-    #echo ${tokens[2]}
-    printf %s "$var" | while IFS= read -r line
-    do
 
-      #protect from going wrong
-      if [ $line == "/" ]; then continue; fi
-      if [ $line == "//" ]; then continue; fi
-      if [ $line == "/fff" ]; then continue; fi
-      if [ $line == "/fff/" ]; then continue; fi
-      if [ $line == "/fff/ramdisk" ]; then continue; fi
-      if [ $line == "/fff/ramdisk/" ]; then continue; fi
-      if [ $line == "fff/ramdisk" ]; then continue; fi
-      if [ $line == "fff/ramdisk/" ]; then continue; fi
+    len=${#pointarr[@]}
+    len2=${#imgarr[@]}
+    if [[ $len == 0 ]]; then
+      echo "no mount points present"
+      exit 0
+    fi
+    max=$((len-1))
+
+    for i in {0..$max}
+    do
+      point=${pointarr[$i]}
+      image=${imgarr[$i]}
+      #protect from dangerous action
+      if [ $point == "/" ]; then continue; fi
+      if [ $point == "//" ]; then continue; fi
+      if [ $point == "/fff" ]; then continue; fi
+      if [ $point == "/fff/" ]; then continue; fi
+      if [ $point == "/fff/ramdisk" ]; then continue; fi
+      if [ $point == "/fff/ramdisk/" ]; then continue; fi
+      if [ $point == "fff/ramdisk" ]; then continue; fi
+      if [ $point == "fff/ramdisk/" ]; then continue; fi
+
+      echo "found mountpoint $point $image"
 
       #prevent FUs from writing boxinfo files by moving directory away
-      mv $line/appliance $line/appliance-delete
+      mv $point/appliance $point/appliance-delete
+      sleep 1
+
+      #unmunt loop device
+      unmount $point
       if [ $? != 0 ]; then
-          sleep 0
-      else
-          sleep 1
+        echo "Trying to kill processes which use mountpoint $point"
+        killpid=`lsof $point | awk -v N=$dummy '{print $2}' | grep -v PID`
+        if [[ $killpid != "" ]]; then
+          echo "$1 is being used by: $killpid. Trying to kill these processes."
+          myarr=($killpid)
+          for i in "${myarr[@]}"
+          do
+            kill -9 $i
+          done
+        else
+          echo "No offenders found."
+        fi
+        sleep 1
+        unmount $point
+        if [ $? != 0 ]; then
+          echo "Unsuccessful umount of $point"
+          exit 2
+        fi
       fi
-      unmount $line
+
+      #deleting mount point
+      rm -rf $point
       if [ $? != 0 ]; then
-        echo "Unsuccessful umount of ${basedir}/"
-        exit 2
+        echo "Unsuccessful delete unmounted mount point dir!"
+        exit 3
       fi
-      image="${line}.img"
+
+      #remove image
       chmod 755 $image
       rm -rf $image
       if [ $? != 0 ]; then
-        echo "Unsuccessful delete old image file $image"
-        exit 3
-      fi
-      rm -rf $mountpoint
-      if [ $? != 0 ]; then
-        echo "Unsuccessful delete old mount point dir!"
+        echo "Unsuccessful delete of image file $image"
         exit 4
       fi
+    echo "Successfully cleaned up mount point $point and deleted image file $image."
     done
     exit 0
   else

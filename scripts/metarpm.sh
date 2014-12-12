@@ -274,13 +274,11 @@ chkconfig --add elasticsearch
 
 %triggerin -- hltd
 #echo "triggered on hltd update or install"
-if [ -f /etc/hltd.instances ]; then
-/sbin/service hltd stop all
-else
+
 /sbin/service hltd stop || true
-fi
-rm -rf /etc/hltd.instances
 /sbin/service soap2file stop || true
+rm -rf /etc/hltd.instances
+
 python2.6 /opt/fff/setupmachine.py restore,hltd
 python2.6 /opt/fff/setupmachine.py hltd $params
 
@@ -297,11 +295,7 @@ fi
 #set up resources for hltd
 /opt/hltd/python/fillresources.py
 
-if [ -f /etc/hltd.instances ]; then
-  /sbin/service hltd restart all
-else
-  /sbin/service hltd restart
-fi
+/sbin/service hltd restart || true
 /sbin/service soap2file restart || true
 
 chkconfig --del hltd
@@ -318,14 +312,11 @@ if [ \$1 == 0 ]; then
   chkconfig --del hltd
   chkconfig --del soap2file
 
+  /sbin/service hltd stop || true
+
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true
 
-  if [ -f /etc/hltd.instances ]; then
-    /sbin/service hltd stop all || true
-  else
-    /sbin/service hltd stop || true
-  fi
 
   python2.6 /opt/fff/setupmachine.py restore,hltd,elasticsearch
 fi

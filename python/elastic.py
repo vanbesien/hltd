@@ -177,16 +177,12 @@ if __name__ == "__main__":
 
     mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
     monMask = inotify.IN_CLOSE_WRITE
-    tempMask = inotify.IN_CLOSE_WRITE
+    tempMask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
 
     logger.info("starting elastic for "+dirname)
 
     try:
         os.makedirs(monDir)
-    except OSError:
-        pass
-    try:
-        os.makedirs(tempDir)
     except OSError:
         pass
 

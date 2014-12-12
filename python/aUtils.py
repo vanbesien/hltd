@@ -106,6 +106,7 @@ class fileHandler(object):
         if not filepath: filepath = self.filepath
         filename = self.basename
         name,ext = self.name,self.ext
+        if ext==TEMPEXT:return UNKNOWN
         name = name.upper()
         if "mon" not in filepath:
             if ext == ".dat" and "_PID" not in name: return DAT
@@ -391,21 +392,37 @@ class fileHandler(object):
             return False
         return True
 
+    #TODO:make sure that the file is copied only once
     def esCopy(self):
         if not self.exists(): return
         if self.filetype in TO_ELASTICIZE:
             esDir = os.path.join(self.dir,ES_DIR_NAME)
             if os.path.isdir(esDir):
+                newpathTemp = os.path.join(esDir,self.basename+TEMPEXT)
                 newpath = os.path.join(esDir,self.basename)
                 retries = 5
                 while True:
                     try:
-                        shutil.copy(self.filepath,newpath)
+                        shutil.copy(self.filepath,newpathTemp)
                         break
                     except (OSError,IOError),e:
                         retries-=1
                         if retries == 0:
                             self.logger.exception(e)
+                            return
+                            #raise e #non-critical exception
+                        else:
+                            time.sleep(0.5)
+                retries = 5
+                while True:
+                    try:
+                        os.rename(newpathTemp,newpath)
+                        break
+                    except (OSError,IOError),e:
+                        retries-=1
+                        if retries == 0:
+                            self.logger.exception(e)
+                            return
                             #raise e #non-critical exception
                         else:
                             time.sleep(0.5)
