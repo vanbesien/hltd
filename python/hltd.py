@@ -331,7 +331,7 @@ def calculate_threadnumber():
             logger.error("idle cores can not be evenly split to cmssw threads")
     else:
         nthreads = conf.cmssw_threads
-        nstreams = conf.cmssw_threads
+        nstreams = conf.cmssw_streams
     expected_processes = idlecount/nstreams
 
 def updateBlacklist(parseOnly=False):

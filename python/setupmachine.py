@@ -102,7 +102,6 @@ def getBUAddr(parentTag,hostname):
 
     global equipmentSet
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
-    #equipmentSet = 'eq_140325_attributes'
 
     if env == "vm":
         con = MySQLdb.connect( host= dbhost, user = dblogin, passwd = dbpwd, db = dbsid)
@@ -176,7 +175,6 @@ def getSelfDataAddr(parentTag):
 
     global equipmentSet
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
-    #equipmentSet = 'eq_140325_attributes'
 
     con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
@@ -463,66 +461,38 @@ if __name__ == "__main__":
                 cmssw_base = '/home/dqmdevlocal'
                 execdir = '/home/dqmdevlocal/output' ##not yet 
 
-        #hardcode minidaq hosts until role is available
-        #if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
-        #    runindex_name = 'runindex_minidaq'
-        #hardcode dqm hosts until role is available
-        #if cnhostname == 'bu-c2f13-31-01.cms' or cnhostname == 'fu-c2f13-39-01.cms' or cnhostname == 'fu-c2f13-39-02.cms' or cnhostname == 'fu-c2f13-39-03.cms' or cnhostname == 'fu-c2f13-39-04.cms':
-        #    runindex_name = 'runindex_dqm'
     else:
         runindex_name = 'test' 
 
-    buName = ''
-    budomain = ''
+    buName = None
+    buDataAddr=[]
+
     if type == 'fu':
-        if cluster == 'daq2val' or cluster == 'daq2': 
-            addrList =  getBUAddr(cluster,cnhostname)
-            selectedAddr = False
-            for addr in addrList:
-                #result = os.system("ping -c 1 "+ str(addr[1])+" >& /dev/null")
-                result = 0#ping disabled for now
-                #os.system("clear")
-                if result == 0:
-                    buDataAddr = addr[1]
-                    if addr[1].find('.'):
-                        buName = addr[1].split('.')[0]
-                        budomain = addr[1][addr[1].find('.'):]
-                    else:
-                        buName = addr[1]
-                    selectedAddr=True
-                    break
-                else:
-                    print "failed to ping",str(addr[1])
+      if cluster == 'daq2val' or cluster == 'daq2': 
+        for addr in getBUAddr(cluster,cnhostname):
+            if buName==None:
+                buName = addr[1].split('.')[0]
+            elif buName != addr[1].split('.')[0]:
+                print "BU name not same for all interfaces:",buName,buNameCheck
+                continue
+            buDataAddr.append(addr[1])
             #if none are pingable, first one is picked
-            if selectedAddr==False:
-                if len(addrList)>0:
-                    addr = addrList[0]
-                    buDataAddr = addr[1]
-                    if addr[1].find('.'):
-                        buName = addr[1].split('.')[0]
-                    else:
-                        buName = addr[1]
-            if buName == '':
+            if buName == None or len(buDataAddr)==0:
                 print "no BU found for this FU in the dabatase"
                 sys.exit(-1)
+      elif cluster =='test':
+          buName = os.uname()[1].split(".")[0]
+          buDataAddr = [buName]
+      else:
+          print "FU configuration in cluster",cluster,"not supported yet !!"
+          sys.exit(-2)
  
-        elif cluster =='test':
-            hn = os.uname()[1].split(".")[0]
-            addrList = [hn]
-            buName = hn
-            buDataAddr = hn
-        else:
-            print "FU configuration in cluster",cluster,"not supported yet !!"
-            sys.exit(-2)
-
     elif type == 'bu':
-        if env == "vm":
-            buName = os.uname()[1].split(".")[0]
-        else:
-            buName = os.uname()[1]
-        addrList = buName
+          if env == "vm":
+              buName = os.uname()[1].split(".")[0]
+          else:
+              buName = os.uname()[1]
 
-    #print "detected address", addrList," and name ",buName
     print "running configuration for machine",cnhostname,"of type",type,"in cluster",cluster,"; appliance bu is:",buName
 
     clusterName='appliance_'+buName
@@ -588,7 +558,12 @@ if __name__ == "__main__":
       #write bu ip address
         print "WRITING BUS CONFIG ", busconfig
         f = open(busconfig,'w+')
-        f.writelines(getIPs(buDataAddr)[0])
+
+        newline=False
+        for addr in buDataAddr:
+            if newline:f.writelines('\n')
+            newline=True
+            f.writelines(getIPs(addr)[0])
         f.close()
 
       #FU should have one instance assigned, BUs can have multiple
@@ -607,16 +582,17 @@ if __name__ == "__main__":
       if type=='bu':
         try:os.remove('/etc/hltd.instances')
         except:pass
-          #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
-          try:
-              subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
-              #delete existing run directories only if this machine will have non-default instances
-              if instances!=["main"]:
-                os.popen('rm -rf /fff/ramdisk/run*')
-          except subprocess.CalledProcessError, err1:
-              print 'failed to cleanup ramdisk',err1
-          except Exception as ex:
-              print 'failed to cleanup ramdisk',ex
+
+        #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
+        try:
+            subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
+            #delete existing run directories only if this machine will have non-default instances
+            if instances!=["main"]:
+              os.popen('rm -rf /fff/ramdisk/run*')
+        except subprocess.CalledProcessError, err1:
+            print 'failed to cleanup ramdisk',err1
+        except Exception as ex:
+            print 'failed to cleanup ramdisk',ex
  
         cgibase=9000
 
