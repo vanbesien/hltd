@@ -96,7 +96,17 @@ def checkModifiedConfig(lines):
         if l.strip().startswith("#edited by fff meta rpm"):
             return True
     return False
-    
+
+
+#alternates between two data inteface indices based on host naming convention
+def name_identifier():
+  try:
+      nameParts = os.uname()[1].split('-')
+      return (int(nameParts[-1]) * int(nameParts[-2]/2)) % 2
+  except:
+      return 0
+
+
 
 def getBUAddr(parentTag,hostname):
 
@@ -558,6 +568,12 @@ if __name__ == "__main__":
       #write bu ip address
         print "WRITING BUS CONFIG ", busconfig
         f = open(busconfig,'w+')
+
+        #swap entries based on name (only C6100 hosts with two data interfaces):
+        if len(buDataAddr)>1 and name_identifier()==1:
+            temp = buDataAddr[0]
+            buDataAddr[0]=buDataAddr[1]
+            buDataAddr[1]=temp
 
         newline=False
         for addr in buDataAddr:

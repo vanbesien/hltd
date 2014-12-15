@@ -21,7 +21,7 @@ import demote
 import re
 import shutil
 import socket
-import random
+#import random
 
 #modules distributed with hltd
 import prctl
@@ -334,25 +334,26 @@ def calculate_threadnumber():
         nstreams = conf.cmssw_streams
     expected_processes = idlecount/nstreams
 
-def updateBlacklist(parseOnly=False):
-    #FU can be blacklisted by putting the name in /etc/appliance/blacklist on BU
-    #this will be disabled once a blacklist DB is used
+
+def updateBlacklist():
     black_list=[]
     active_black_list=[]
+    #TODO:this will be updated to read blacklist from database
     if conf.role=='bu':
-        #TODO:have mandatory check in blacklist DB
         try:
             os.stat('/etc/appliance/blacklist')
             with open('/etc/appliance/blacklist','r') as fi:
                 try:
                     static_black_list = json.load(fi)
-                    black_list+=static_black_list
-                    logger.info("found these resources in /etc/appliance/blacklist:"+str(black_list))
+                    for item in static_black_list:
+                        black_list+=item
+                    logger.info("found these resources in /etc/appliance/blacklist: "+str(black_list))
                 except ValueError:
                     logger.error("error parsing /etc/appliance/blacklist")
         except:
             #no blacklist file, this is ok
             pass
+        black_list=list(set(black_list))
         try:
             forceUpdate=False
             with open(os.path.join(conf.watch_directory,'appliance','blacklist'),'r') as fi:
@@ -365,6 +366,7 @@ def updateBlacklist(parseOnly=False):
                     json.dump(black_list,fi)
             except:
                 return False,black_list
+    #TODO:check on FU if blacklisted
     return True,black_list
 
 
@@ -923,6 +925,7 @@ class Run:
         self.threadEvent = threading.Event()
         global active_runs
         global active_runs_errors
+        global machine_blacklist
 
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STARTING)
@@ -989,7 +992,8 @@ class Run:
             except Exception, ex:
                 logger.error("could not create mon dir inside the run input directory")
         else:
-            self.rawinputdir= os.path.join(random.choice(bu_disk_list_ramdisk_instance),'run' + str(self.runnumber).zfill(conf.run_number_padding))
+            #self.rawinputdir= os.path.join(random.choice(bu_disk_list_ramdisk_instance),'run' + str(self.runnumber).zfill(conf.run_number_padding))
+            self.rawinputdir= os.path.join(bu_disk_list_ramdisk_instance[0],'run' + str(self.runnumber).zfill(conf.run_number_padding))
 
         self.lock = threading.Lock()
 
@@ -1013,7 +1017,8 @@ class Run:
         if conf.role == "fu" and conf.dqm_machine==False:
             try:
                 logger.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir,random.choice(bu_disk_list_output_instance)]
+                #elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir,random.choice(bu_disk_list_output_instance)]
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir,bu_disk_list_output_instance[0]]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
@@ -1067,15 +1072,16 @@ class Run:
         cpu_group=[]
         #self.lock.acquire()
 
-        update_success,black_list=updateBlacklist()
-        if update_success==False:
-            logger.fatal("unable to check blacklist: giving up on run start")
-            return False
+        if conf.role='bu':
+            update_success,machine_blacklist=updateBlacklist()
+            if update_success==False:
+                logger.fatal("unable to check blacklist: giving up on run start")
+                return False
 
         for cpu in dirlist:
             #skip self
             if conf.role=='bu' and cpu == os.uname()[1]:continue
-            if cpu in black_list:
+            if cpu in machine_blacklist:
                 logger.info("skipping blacklisted resource "+str(resource.cpu))
                 continue
  
@@ -1096,22 +1102,13 @@ class Run:
         #self.lock.release()
 
     def Start(self):
-        black_list=[]
-        if conf.role=='bu':
-            try:
-                with open('/etc/appliance/blacklist',"r") as fi:
-                    black_list = json.load(fi)
-            except:pass
         self.is_active_run = True
         for resource in self.online_resource_list:
             logger.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
             if conf.role == 'fu':
                 self.StartOnResource(resource)
             else:
-                if resource.cpu in black_list:
-                    logger.info("skipping blacklisted resource "+str(resource.cpu))
-                else:
-                    resource.NotifyNewRun(self.runnumber)
+                resource.NotifyNewRun(self.runnumber)
                 #update begin time to after notifying FUs
                 self.beginTime = datetime.datetime.now()
         if conf.role == 'fu' and conf.dqm_machine==False:
@@ -1546,7 +1543,8 @@ class RunRanger:
                             logger.fatal("failed to disable VM mode when receiving notification for run "+str(nr))
                             logger.exception(ex)
                     if conf.role == 'fu':
-                        bu_dir = random.choice(bu_disk_list_ramdisk_instance)+'/'+dirname
+                        #bu_dir = random.choice(bu_disk_list_ramdisk_instance)+'/'+dirname
+                        bu_dir = bu_disk_list_ramdisk_instance[0]+'/'+dirname
                         try:
                             os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
                         except:
@@ -2007,15 +2005,17 @@ class ResourceRanger:
     def process_IN_CLOSE_WRITE(self, event):
         logger.debug('ResourceRanger-IN_CLOSE_WRITE: event '+event.fullpath)
         global machine_blacklist
+        resourcepath=event.fullpath[0:event.fullpath.rfind("/")]
         basename = os.path.basename(event.fullpath)
         if basename.startswith('resource_summary'):return
         if conf.role=='fu':return
         if basename == os.uname()[1]:return
         if basename == 'blacklist':
-                with open(os.path.join(conf.watch_directory,'appliance','blacklist','r')) as fi:
+            with open(os.path.join(conf.watch_directory,'appliance','blacklist','r')) as fi:
+                try:
                     machine_blacklist = json.load(fi)
-                #TODO:cases where blacklist is missing should be handled!
-        resourcepath=event.fullpath[0:event.fullpath.rfind("/")]
+                except:
+                    pass
         if resourcepath.endswith('boxes'):
             global boxinfoFUMap
             if basename in machine_blacklist:
@@ -2029,7 +2029,6 @@ class ResourceRanger:
                 except Exception as ex:
                     logger.error("Unable to read of parse boxinfo file "+basename)
                     logger.exception(ex)
-        #
  
 
 
@@ -2114,9 +2113,8 @@ class hltd(Daemon2,object):
                 pass
 
         if conf.role == 'bu':
-            #todo:checks
             global machine_blacklist
-            update_success,machine_blacklist=updateBlacklist(parseOnly=True)
+            update_success,machine_blacklist=updateBlacklist()
 
         """
         the line below is a VERY DIRTY trick to address the fact that
