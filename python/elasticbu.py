@@ -23,8 +23,10 @@ import csv
 
 import requests
 import simplejson as json
-
 import socket
+
+#silence HTTP connection info from requests package
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 def getURLwithIP(url):
   try:
@@ -92,13 +94,18 @@ class elasticBandBU:
             try:
                 if retry or self.ip_url==None:
                     self.ip_url=getURLwithIP(self.es_server_url)
-                    self.es = ElasticSearch(self.es_server_url)
+                    self.es = ElasticSearch(self.ip_url,timeout=20,revival_delay=60)
 
                 #check if runindex alias exists
-                self.logger.info('writing to elastic index '+alias_write)
                 if requests.get(self.es_server_url+'/_alias/'+alias_write).status_code == 200: 
+                    self.logger.info('writing to elastic index '+alias_write + ' on '+self.es_server_url+' / '+self.ip_url )
                     self.createDocMappingsMaybe(alias_write,mapping)
-                break
+                    break
+                else:
+                    time.sleep(.5)
+                    if connectionAttempts>5:
+                        self.logger.error('unable to access to elasticsearch alias ' + alias_write + ' on '+self.es_server_url+' / '+self.ip_url)
+                    continue
             except ElasticHttpError as ex:
                 #es error, retry
                 self.logger.error(ex)
@@ -139,15 +146,10 @@ class elasticBandBU:
                     for indexname in inmapping:
                         properties = inmapping[indexname]['mappings'][key]['properties']
                         #should be size 1
-                        for pdoc in properties:
-                            if pdoc not in mapping[key]['properties']:
+                        for pdoc in mapping[key]['properties']:
+                            if pdoc not in properties:
                                 requests.post(self.ip_url+'/'+index_name+'/'+key+'/_mapping',json.dumps(doc))
-                            break
-                        break
-
-    def resetURL(url):
-        self.es = None
-        self.es = ElasticSearch(url)
+                                break
 
     def read_line(self,fullpath):
         with open(fullpath,'r') as fp:
@@ -303,7 +305,7 @@ class elasticBandBU:
                 if self.stopping:return False
                 time.sleep(0.1)
                 ip_url=getURLwithIP(self.es_server_url)
-                self.es = ElasticSearch(ip_url)
+                self.es = ElasticSearch(ip_url,timeout=20,revival_delay=60)
         return False
              
 
@@ -331,7 +333,7 @@ class elasticCollectorBU():
         self.stoprequest.set()
 
     def run(self):
-	self.logger.info("Start main loop")
+	self.logger.info("elasticCollectorBU: start main loop (monitoring:"+inRunDir+")")
 	count = 0
 	while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
 	    if self.source:
@@ -415,7 +417,7 @@ class elasticBoxCollectorBU():
         self.stoprequest.set()
 
     def run(self):
-        self.logger.info("Start main loop")
+	self.logger.info("elasticBoxCollectorBU: start main loop")
         while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
             if self.source:
                 try:
@@ -432,7 +434,7 @@ class elasticBoxCollectorBU():
                     self.logger.warning("IOError on reading "+event.fullpath)
             else:
                 time.sleep(1.0)
-        self.logger.info("Stop main loop")
+        self.logger.info("elasticBoxCollectorBU: stop main loop")
 
     def setSource(self,source):
         self.source = source

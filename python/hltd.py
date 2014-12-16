@@ -408,7 +408,6 @@ class system_monitor(threading.Thread):
             res_path = os.path.join(conf.watch_directory,'appliance','resource_summary')
             selfhost = os.uname()[1]
             while self.running:
-                logger.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
                 if suspended:continue
                 tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
@@ -1072,7 +1071,7 @@ class Run:
         cpu_group=[]
         #self.lock.acquire()
 
-        if conf.role='bu':
+        if conf.role=='bu':
             update_success,machine_blacklist=updateBlacklist()
             if update_success==False:
                 logger.fatal("unable to check blacklist: giving up on run start")
@@ -1491,11 +1490,9 @@ class RunRanger:
         self.inotifyWrapper.start()
 
     def stop_inotify(self):
-        logger.info("RunRanger: Stop inotify wrapper")
         self.inotifyWrapper.stop()
-        logger.info("RunRanger: Join inotify wrapper")
         self.inotifyWrapper.join()
-        logger.info("RunRanger: Inotify wrapper returned")
+        logger.info("RunRanger: Inotify wrapper shutdown done")
 
     def process_IN_CREATE(self, event):
         nr=0
@@ -1665,16 +1662,17 @@ class RunRanger:
             active_runs_errors=[]
             active_runs=[]
         elif dirname.startswith('populationcontrol'):
-            logger.info("terminating all ongoing runs")
-            for run in run_list:
-                if conf.role=='fu':
-                    run.Shutdown(run.runnumber in runs_pending_shutdown)
-                elif conf.role=='bu':
-                    run.ShutdownBU()
+            if len(run_list)>0:
+                logger.info("terminating all ongoing runs via cgi interface (populationcontrol): "+str(run_list))
+                for run in run_list:
+                    if conf.role=='fu':
+                        run.Shutdown(run.runnumber in runs_pending_shutdown)
+                    elif conf.role=='bu':
+                        run.ShutdownBU()
+                logger.info("terminated all ongoing runs via cgi interface (populationcontrol)")
             run_list = []
             active_runs_errors=[]
             active_runs=[]
-            logger.info("terminated all ongoing runs via cgi interface (populationcontrol)")
             os.remove(event.fullpath)
 
         elif dirname.startswith('harakiri') and conf.role == 'fu':
@@ -1860,18 +1858,14 @@ class ResourceRanger:
         self.inotifyWrapper.start()
 
     def stop_managed_monitor(self):
-        logger.info("ResourceRanger: Stop managed monitor")
         self.managed_monitor.stop()
-        logger.info("ResourceRanger: Join managed monitor")
         self.managed_monitor.join()
-        logger.info("ResourceRanger: managed monitor returned")
+        logger.info("ResourceRanger: managed monitor shutdown done")
 
     def stop_inotify(self):
-        logger.info("ResourceRanger: Stop inotify wrapper")
         self.inotifyWrapper.stop()
-        logger.info("ResourceRanger: Join inotify wrapper")
         self.inotifyWrapper.join()
-        logger.info("ResourceRanger: Inotify wrapper returned")
+        logger.info("ResourceRanger: Inotify wrapper shutdown done")
 
     def process_IN_MOVED_TO(self, event):
         logger.debug('ResourceRanger-MOVEDTO: event '+event.fullpath)
@@ -2190,22 +2184,23 @@ class hltd(Daemon2,object):
             logger.info("")
             httpd.serve_forever()
         except KeyboardInterrupt:
-            logger.info("terminating all ongoing runs")
-            for run in run_list:
-                if conf.role=='fu':
-                    global runs_pending_shutdown
-                    run.Shutdown(run.runnumber in runs_pending_shutdown)
-                elif conf.role=='bu':
-                    run.ShutdownBU()
-            logger.info("terminated all ongoing runs")
-            logger.info("stopping run ranger inotify helper")
+            logger.info("stop signal detected")
+            if len(run_list)>0:
+                logger.info("terminating all ongoing runs")
+                for run in run_list:
+                    if conf.role=='fu':
+                        global runs_pending_shutdown
+                        run.Shutdown(run.runnumber in runs_pending_shutdown)
+                    elif conf.role=='bu':
+                        run.ShutdownBU()
+                logger.info("terminated all ongoing runs")
             runRanger.stop_inotify()
-            logger.info("stopping resource ranger inotify helper")
             rr.stop_inotify()
             if boxInfo is not None:
                 logger.info("stopping boxinfo updater")
                 boxInfo.stop()
             if logCollector is not None:
+                logger.info("terminating logCollector")
                 logCollector.terminate()
             logger.info("stopping system monitor")
             rr.stop_managed_monitor()
@@ -2217,7 +2212,7 @@ class hltd(Daemon2,object):
               time.sleep(1)
               cleanup_mountpoints(remount=False)
             
-            logger.info("shutdown of service completed")
+            logger.info("shutdown of service (main thread) completed")
         except Exception as ex:
             logger.info("exception encountered in operating hltd")
             logger.info(ex)

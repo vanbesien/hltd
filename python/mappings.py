@@ -211,32 +211,7 @@ central_boxinfo_mapping = {
               'store'     : "yes",
               "path"      : "fm_date"
               }
-          },
-          'boxinfo_last' : {#deprecated
-            '_id'        :{'path':'id'},
-            'properties' : {
-              'fm_date'       :{'type':'date'},
-              'id'            :{'type':'string'},
-              'broken'        :{'type':'integer'},
-              'used'          :{'type':'integer'},
-              'idles'         :{'type':'integer'},
-              'quarantined'   :{'type':'integer'},
-              'cloud'         :{'type':'integer'},
-              'usedDataDir'   :{'type':'integer'},
-              'totalDataDir'  :{'type':'integer'},
-              'usedRamdisk'   :{'type':'integer'},
-              'totalRamdisk'  :{'type':'integer'},
-              'usedOutput'    :{'type':'integer'},
-              'totalOutput'   :{'type':'integer'},
-              'activeRuns'    :{'type':'string'},
-              },
-            '_timestamp' : { 
-              'enabled'   : True,
-              'store'     : "yes",
-              "path"      : "fm_date"
-              }
-            }
-          
+            },
           }
 
 

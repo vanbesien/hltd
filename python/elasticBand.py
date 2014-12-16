@@ -22,7 +22,7 @@ class elasticBand():
         self.prcinBuffer = {}
         self.prcoutBuffer = {}
         self.fuoutBuffer = {}
-        self.es = ElasticSearch(es_server_url,timeout=20) 
+        self.es = ElasticSearch(es_server_url,timeout=20,revival_delay=60) 
         self.hostname = os.uname()[1]
         self.hostip = socket.gethostbyname_ex(self.hostname)[2][0]
         #self.number_of_data_nodes = self.es.health()['number_of_data_nodes']

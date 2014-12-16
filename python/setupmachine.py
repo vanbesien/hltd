@@ -46,6 +46,10 @@ ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
            "fu-c2f13-41-03","fu-c2f13-41-04"]
 myhost = os.uname()[1]
 
+#testing dual mount point
+vm_override_buHNs = {"fu-vm-01-01":["bu-vm-01-01","bu-vm-01-01"],
+                     "fu-vm-01-02":["bu-vm-01-01"]}
+
 def getmachinetype():
 
     #print "running on host ",myhost
@@ -114,6 +118,15 @@ def getBUAddr(parentTag,hostname):
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
 
     if env == "vm":
+
+        try:
+            #cluster in openstack that is not (yet) in mysql
+            retval = []
+            for bu_hn in vm_override_buHNs[hostname]:
+              retval.append(["myBU",bu_hn])
+            return retval
+        except:
+            pass
         con = MySQLdb.connect( host= dbhost, user = dblogin, passwd = dbpwd, db = dbsid)
     else:
         if parentTag == 'daq2':
@@ -257,7 +270,7 @@ class FileManager:
     def commit(self):
         out = []
         if self.edited  == False:
-            out.append('#edited by fff meta rpm at '+getTimeString())
+            out.append('#edited by fff meta rpm at '+getTimeString()+'\n')
 
         #first removing elements
         for rm in self.remove:
@@ -516,7 +529,7 @@ if __name__ == "__main__":
         #print "will modify sysconfig elasticsearch configuration"
         #maybe backup vanilla versions
         essysEdited =  checkModifiedConfigInFile(elasticsysconf)
-        if essysEdited == False and type == 'fu': #modified only on FU
+        if essysEdited == False:
           #print "elasticsearch sysconfig configuration was not yet modified"
           shutil.copy(elasticsysconf,os.path.join(backup_dir,os.path.basename(elasticsysconf)))
 
@@ -550,7 +563,10 @@ if __name__ == "__main__":
             #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+elastic_host2+'\" ]')
             escfg.reg('transport.tcp.compress','true')
             escfg.reg('node.master','true')
-            escfg.reg('node.data','false')
+            if env=='vm':
+                escfg.reg('node.data','true')
+            else:
+                escfg.reg('node.data','false')
 
         escfg.commit()
 

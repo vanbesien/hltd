@@ -51,7 +51,7 @@ class Soap2file(Daemon2):
         self._conf=hltdconf.hltdConf('/etc/hltd.conf')
         self._hostname = os.uname()[1]
 
-    def checkEnabled():
+    def checkEnabled(self):
         if self._conf.soap2file_port>0:return True
         return False
 
