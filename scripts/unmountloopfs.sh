@@ -12,7 +12,7 @@ if [ -n "$1" ]; then
     len=${#pointarr[@]}
     len2=${#imgarr[@]}
     if [[ $len == 0 ]]; then
-      echo "no mount points present"
+      echo "no loopback mount points present."
       exit 0
     fi
     max=$((len-1))
@@ -63,7 +63,7 @@ if [ -n "$1" ]; then
       #deleting mount point
       rm -rf $point
       if [ $? != 0 ]; then
-        echo "Unsuccessful delete unmounted mount point dir!"
+        echo "Unsuccessful delete of unmounted mount point $point !"
         exit 3
       fi
 

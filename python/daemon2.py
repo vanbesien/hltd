@@ -276,7 +276,7 @@ class Daemon2:
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
         mounts = re.findall('/'+bu_base_dir+'[0-9]+',out)
-        mounts = list(set(mounts))
+        mounts = sorted(list(set(mounts)))
         for point in mounts:
             sys.stdout.write("trying emergency umount of "+point+"\n")
             try:
@@ -284,7 +284,8 @@ class Daemon2:
             except subprocess.CalledProcessError, err1:
                 pass
             except Exception as ex:
-                sys.stdout.write(ex.args[0]+"\n")
+                #ok(legacy mountpoint)
+                pass
             try:
                 subprocess.check_call(['umount',os.path.join('/'+point,ramdisk_subdirectory)])
             except subprocess.CalledProcessError, err1:

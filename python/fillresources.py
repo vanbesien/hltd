@@ -13,7 +13,7 @@ if conf.role==None:
     elif 'fu' in os.uname()[1]: role='fu'
 else: role = conf.role
 
-if role=='fu' and conf.dqm_machine=="False":
+if role=='fu' and not conf.dqm_machine:
 
     try:
         shutil.rmtree('/etc/appliance/idle/*')

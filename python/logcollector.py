@@ -15,7 +15,7 @@ from inotifywrapper import InotifyWrapper
 import _inotify as inotify
 import threading
 import Queue
-import json
+import simplejson as json
 import logging
 import collections
 import subprocess

@@ -8,7 +8,7 @@ print "<TITLE>CGI script suspend</TITLE>"
 
 portsuffix=""
 if "port" in form:
-    portsuffix=form["run"].value
+    portsuffix=form["port"].value
 
 try:
     os.unlink('suspend'+portsuffix)

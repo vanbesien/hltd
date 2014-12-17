@@ -60,7 +60,7 @@ class elasticCollector():
         infile = self.infile
         filetype = infile.filetype
         eventtype = self.eventtype    
-        if eventtype & inotify.IN_CLOSE_WRITE:
+        if eventtype & (inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO) :
             if filetype in [FAST,SLOW]:
                 self.elasticize()
             elif self.esDirName in infile.dir:
@@ -170,19 +170,21 @@ if __name__ == "__main__":
     expected_processes = int(sys.argv[3])
     indexSuffix = conf.elastic_cluster
     update_modulo=conf.fastmon_insert_modulo
-    dirname = os.path.basename(os.path.normpath(dirname))
-    watchDir = os.path.join(conf.watch_directory,dirname)#???
-    monDir = os.path.join(watchDir,"mon")
-    tempDir = os.path.join(watchDir,ES_DIR_NAME)
+    rundirname = os.path.basename(os.path.normpath(dirname))
+    monDir = os.path.join(dirname,"mon")
+    tempDir = os.path.join(dirname,ES_DIR_NAME)
 
-    mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
-    monMask = inotify.IN_CLOSE_WRITE
+    monMask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
     tempMask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
 
-    logger.info("starting elastic for "+dirname)
+    logger.info("starting elastic for "+rundirname)
 
     try:
         os.makedirs(monDir)
+    except OSError:
+        pass
+    try:
+        os.makedirs(tempDir)
     except OSError:
         pass
 
@@ -191,12 +193,11 @@ if __name__ == "__main__":
         #starting inotify thread
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
-        #mr.register_inotify_path(watchDir,mask)
         mr.register_inotify_path(monDir,monMask)
         mr.register_inotify_path(tempDir,tempMask)
         mr.start_inotify()
 
-        es = elasticBand.elasticBand('http://'+conf.es_local+':9200',dirname,indexSuffix,expected_processes,update_modulo)
+        es = elasticBand.elasticBand('http://'+conf.es_local+':9200',rundirname,indexSuffix,expected_processes,update_modulo)
 
         #starting elasticCollector thread
         ec = elasticCollector(ES_DIR_NAME,inmondir)

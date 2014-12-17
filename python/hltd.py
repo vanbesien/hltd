@@ -9,7 +9,7 @@ import logging
 import subprocess
 from signal import SIGKILL
 from signal import SIGINT
-import json
+import simplejson as json
 #import SOAPpy
 import threading
 import fcntl
@@ -175,7 +175,7 @@ def cleanup_mountpoints(remount=True):
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
         mounts = re.findall('/'+conf.bu_base_dir+'[0-9]+',out)
-        mounts = list(set(mounts))
+        mounts = sorted(list(set(mounts)))
         logger.info("cleanup_mountpoints: found following mount points: ")
         logger.info(mounts)
         umount_failure=False
@@ -383,9 +383,11 @@ class system_monitor(threading.Thread):
 
     def rehash(self):
         if conf.role == 'fu':
-            self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list_ramdisk_instance]
+            self.directory = [os.path.join(bu_disk_list_ramdisk_instance[0],'appliance','boxes')]
+            #self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list_ramdisk_instance]
+            #write only in one location
         else:
-            self.directory = [conf.watch_directory+'/appliance/boxes/']
+            self.directory = [os.path.join(conf.watch_directory,'appliance/boxes/')]
             try:
                 #if directory does not exist: check if it is renamed to specific name (non-main instance)
                 if not os.path.exists(self.directory[0]) \
@@ -394,9 +396,9 @@ class system_monitor(threading.Thread):
             except OSError:
                 pass
 
-        self.file = [x+self.hostname for x in self.directory]
+        self.file = [os.path.join(x,self.hostname) for x in self.directory]
 
-        logger.info("system_monitor: rehash found the following BU disks")
+        logger.info("system_monitor: rehash found the following BU disk(s):"+str(self.file))
         for disk in self.file:
             logger.info(disk)
 
@@ -477,6 +479,7 @@ class system_monitor(threading.Thread):
                             fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                             fp.write('entriesComplete=True')
 
+                #deprecated
                 if conf.role == 'bu':
                     mfile = conf.resource_base+'/disk.jsn'
                     stat=[]
@@ -905,7 +908,8 @@ class Run:
 
     VALID_MARKERS = [STARTING,ACTIVE,STOPPING,COMPLETE,ABORTED]
 
-    def __init__(self,nr,dirname,bu_dir):
+    def __init__(self,nr,dirname,bu_dir,instance):
+        self.instance = instance
         self.runnumber = nr
         self.dirname = dirname
         self.online_resource_list = []
@@ -1071,6 +1075,7 @@ class Run:
         cpu_group=[]
         #self.lock.acquire()
 
+        global machine_blacklist
         if conf.role=='bu':
             update_success,machine_blacklist=updateBlacklist()
             if update_success==False:
@@ -1079,10 +1084,11 @@ class Run:
 
         for cpu in dirlist:
             #skip self
-            if conf.role=='bu' and cpu == os.uname()[1]:continue
-            if cpu in machine_blacklist:
-                logger.info("skipping blacklisted resource "+str(resource.cpu))
-                continue
+            if conf.role=='bu':
+                if cpu == os.uname()[1]:continue
+                if cpu in machine_blacklist:
+                    logger.info("skipping blacklisted resource "+str(resource.cpu))
+                    continue
  
             count = count+1
             cpu_group.append(cpu)
@@ -1279,7 +1285,8 @@ class Run:
                             self.elastic_monitor.wait()
                 except Exception as ex:
                     logger.info("exception encountered in shutting down elastic.py")
-                    logger.exception(ex)
+                    if "No child processes" in str(ex):pass
+                    else:logger.exception(ex)
             if self.waitForEndThread is not None:
                 self.waitForEndThread.join()
         except Exception as ex:
@@ -1480,8 +1487,9 @@ class Run:
 
 class RunRanger:
 
-    def __init__(self):
+    def __init__(self,instance):
         self.inotifyWrapper = InotifyWrapper(self)
+        self.instance = instance
 
     def register_inotify_path(self,path,mask):
         self.inotifyWrapper.registerPath(path,mask)
@@ -1517,6 +1525,7 @@ class RunRanger:
                         q_run = filter(lambda x: x.runnumber==q_runnumber,run_list)
                         if len(q_run):
                             q_run[0].Shutdown(True)#run abort in herod mode (wait for anelastic/elastic to shut down)
+                            time.sleep(.1)
 
                     if cloud_mode==True and entering_cloud_mode==False:
                         logger.info("received new run notification in VM mode. Checking if idle cores are available...")
@@ -1559,7 +1568,7 @@ class RunRanger:
                                 # create an EoR file that will trigger all the running jobs to exit nicely
                                 open(EoR_file_name, 'w').close()
                                 
-                    run_list.append(Run(nr,event.fullpath,bu_dir))
+                    run_list.append(Run(nr,event.fullpath,bu_dir,self.instance))
                     resource_lock.acquire()
                     if run_list[-1].AcquireResources(mode='greedy'):
                         run_list[-1].Start()
@@ -2133,7 +2142,7 @@ class hltd(Daemon2,object):
             logcollector_args.append(self.instance)
             logCollector = subprocess.Popen(logcollector_args,preexec_fn=preexec_function,close_fds=True)
 
-        runRanger = RunRanger()
+        runRanger = RunRanger(self.instance)
         runRanger.register_inotify_path(watch_directory,inotify.IN_CREATE)
         runRanger.start_inotify()
         logger.info("started RunRanger  - watch_directory " + watch_directory)

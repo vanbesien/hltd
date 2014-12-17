@@ -5,7 +5,7 @@ from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 from pyelasticsearch.client import ConnectionError
 from pyelasticsearch.client import Timeout
-import json
+import simplejson as json
 import csv
 import math
 import logging

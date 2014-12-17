@@ -69,11 +69,7 @@ class hltdConf:
                         self.elastic_cluster = line.split(':')[1].strip()
       
     def dump(self):
-        logging.info( '<CONFIGURATION time='+str(datetime.datetime.now())+'>')
-        logging.info( 'conf.user            '+self.user)
-        logging.info( 'conf.role            '+ self.role)
-        logging.info( 'conf.cmssw_base      '+ self.cmssw_base)
-        logging.info( '</CONFIGURATION>')
+        logging.info( '<hltd STATUS time="' + str(datetime.datetime.now()).split('.')[0] + '" user:' + self.user + ' role:' + self.role + '>')
 
     def autodetect_parameters(self):
         if not self.role and (os.uname()[1].startswith('bu-') or os.uname()[1].startswith('dvbu-')):

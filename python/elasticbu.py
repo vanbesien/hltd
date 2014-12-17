@@ -98,7 +98,7 @@ class elasticBandBU:
 
                 #check if runindex alias exists
                 if requests.get(self.es_server_url+'/_alias/'+alias_write).status_code == 200: 
-                    self.logger.info('writing to elastic index '+alias_write + ' on '+self.es_server_url+' / '+self.ip_url )
+                    self.logger.info('writing to elastic index '+alias_write + ' on '+self.es_server_url+' - '+self.ip_url )
                     self.createDocMappingsMaybe(alias_write,mapping)
                     break
                 else:

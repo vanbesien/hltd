@@ -47,8 +47,12 @@ ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
 myhost = os.uname()[1]
 
 #testing dual mount point
-vm_override_buHNs = {"fu-vm-01-01":["bu-vm-01-01","bu-vm-01-01"],
-                     "fu-vm-01-02":["bu-vm-01-01"]}
+vm_override_buHNs = {
+                     "fu-vm-01-01.cern.ch":["bu-vm-01-01","bu-vm-01-01"],
+                     "fu-vm-01-02.cern.ch":["bu-vm-01-01"],
+                     "fu-vm-02-01.cern.ch":["bu-vm-01-01","bu-vm-01-01"],
+                     "fu-vm-02-02.cern.ch":["bu-vm-01-01"]
+                     }
 
 def getmachinetype():
 
@@ -60,7 +64,7 @@ def getmachinetype():
     elif myhost.startswith('cmsdaq-401b28') : return 'test','fu'
     elif myhost.startswith('dvfu-') : return 'test','fu'
     else: 
-       print "debug"
+       print "unknown machine type"
        return 'unknown','unknown'
     
 
@@ -182,7 +186,6 @@ def getBUAddr(parentTag,hostname):
       cur.execute(qstring)
     else:
       print "query equipment set",parentTag+'/'+equipmentSet
-      #print '\n',qstring2
       cur.execute(qstring2)
 
     retval = []
@@ -357,11 +360,6 @@ if __name__ == "__main__":
         if 'elasticsearch' in selection:
             restoreFileMaybe(elasticsysconf)
             restoreFileMaybe(elasticconf)
-        if 'hltd' in selection:
-            try:
-                os.remove(os.path.join(backup_dir,os.path.basename(busconfig)))
-            except:
-                pass
         sys.exit(0)
 
     argvc += 1
@@ -563,7 +561,7 @@ if __name__ == "__main__":
             #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+elastic_host2+'\" ]')
             escfg.reg('transport.tcp.compress','true')
             escfg.reg('node.master','true')
-            if env=='vm':
+            if elastic_host.startswith('http://localhost'):
                 escfg.reg('node.data','true')
             else:
                 escfg.reg('node.data','false')
@@ -574,15 +572,14 @@ if __name__ == "__main__":
 
       #first prepare bus.config file
       if type == 'fu':
-        try:
-          shutil.copy(busconfig,os.path.join(backup_dir,os.path.basename(busconfig)))
-          os.remove(busconfig)
-        except Exception,ex:
-          print "problem with copying bus.config? ",ex
-          pass
+
+        #permissive:try to remove old bus.config
+        try:os.remove(os.path.join(backup_dir,os.path.basename(busconfig)))
+        except:pass
+        try:os.remove(busconfig)
+        except:pass
 
       #write bu ip address
-        print "WRITING BUS CONFIG ", busconfig
         f = open(busconfig,'w+')
 
         #swap entries based on name (only C6100 hosts with two data interfaces):
@@ -607,7 +604,7 @@ if __name__ == "__main__":
       if len(instances)==0: instances=['main']
 
       hltdEdited = checkModifiedConfigInFile(hltdconf)
-      #print "was modified?",hltdEdited
+
       if hltdEdited == False:
         shutil.copy(hltdconf,os.path.join(backup_dir,os.path.basename(hltdconf)))
 
@@ -655,12 +652,13 @@ if __name__ == "__main__":
 
           soap2file_port='0'
  
-          if myhost in dqm_list or myhost in ed_list or cluster == 'daq2val':
+          if myhost in dqm_list or myhost in ed_list or cluster == 'daq2val' or env=='vm':
               soap2file_port='8010'
 
           hltdcfg = FileManager(cfile,'=',hltdEdited,' ',' ')
 
           hltdcfg.reg('enabled','True','[General]')
+          hltdcfg.reg('role','bu','[General]')
       
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('instance',instance,'[General]')
@@ -672,7 +670,6 @@ if __name__ == "__main__":
 
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('watch_directory',watch_dir_bu,'[General]')
-          hltdcfg.reg('role','bu','[General]')
           hltdcfg.reg('micromerge_output',out_dir_bu,'[General]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
@@ -691,13 +688,15 @@ if __name__ == "__main__":
       if type=='fu':
           hltdcfg = FileManager(hltdconf,'=',hltdEdited,' ',' ')
 
+          hltdcfg.reg('enabled','True','[General]')
+          hltdcfg.reg('role','fu','[General]')
+
+          hltdcfg.reg('user',username,'[General]')
           #FU can only have one instance (so we take instance[0] and ignore others)
           hltdcfg.reg('instance',instances[0],'[General]')
 
           hltdcfg.reg('exec_directory',execdir,'[General]') 
-          hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('watch_directory','/fff/data','[General]')
-          hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cgi_port','9000','[Web]')
           hltdcfg.reg('cgi_instance_port_offset',"0",'[Web]')
           hltdcfg.reg('soap2file_port','0','[Web]')
