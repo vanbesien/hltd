@@ -390,8 +390,7 @@ class system_monitor(threading.Thread):
             self.directory = [os.path.join(conf.watch_directory,'appliance/boxes/')]
             try:
                 #if directory does not exist: check if it is renamed to specific name (non-main instance)
-                if not os.path.exists(self.directory[0]) \
-                    and (not os.path.exists(os.path.join(conf.watch_directory,'appliance-delete/boxes')) or conf.instance=="main"):
+                if not os.path.exists(self.directory[0] and conf.instance=="main":
                     os.makedirs(self.directory[0])
             except OSError:
                 pass
