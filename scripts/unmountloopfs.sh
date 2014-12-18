@@ -34,12 +34,14 @@ if [ -n "$1" ]; then
       echo "found mountpoint $point $image"
       #kill any processes that might use the mount point and remove from NFS
       fuser -km $point
-      exportfs -u *:$point
       #unmunt loop device
+      sleep 0.2
+      exportfs -u *:$point
       umount $point
       if [ $? != 0 ]; then
         sleep 0.1
         fuser -km $point
+        sleep 0.2
         exportfs -u *:$point
         umount $point
         if [ $? != 0 ]; then
