@@ -12,13 +12,13 @@ if [ -n "$1" ]; then
     len=${#pointarr[@]}
     len2=${#imgarr[@]}
     if [[ $len == 0 ]]; then
-      echo "no loopback mount points present."
       exit 0
     fi
-    max=$((len-1))
+    max=$((len))
 
-    for i in {0..$max}
+    for i in $(seq 0 1 $max)
     do
+      if [ $i == $max ]; then continue; fi
       point=${pointarr[$i]}
       image=${imgarr[$i]}
       #protect from dangerous action
@@ -32,39 +32,28 @@ if [ -n "$1" ]; then
       if [ $point == "fff/ramdisk/" ]; then continue; fi
 
       echo "found mountpoint $point $image"
-
-      #prevent FUs from writing boxinfo files by moving directory away
-      mv $point/appliance $point/appliance-delete
-      sleep 1
-
+      #kill any processes that might use the mount point and remove from NFS
+      fuser -km $point
+      exportfs -u *:$point
       #unmunt loop device
-      unmount $point
+      umount $point
       if [ $? != 0 ]; then
-        echo "Trying to kill processes which use mountpoint $point"
-        killpid=`lsof $point | awk -v N=$dummy '{print $2}' | grep -v PID`
-        if [[ $killpid != "" ]]; then
-          echo "$1 is being used by: $killpid. Trying to kill these processes."
-          myarr=($killpid)
-          for i in "${myarr[@]}"
-          do
-            kill -9 $i
-          done
-        else
-          echo "No offenders found."
-        fi
-        sleep 1
-        unmount $point
+        sleep 0.1
+        fuser -km $point
+        exportfs -u *:$point
+        umount $point
         if [ $? != 0 ]; then
-          echo "Unsuccessful umount of $point"
-          exit 2
+          echo "Unsuccessful unmount of $point !"
+          exit 1
         fi
       fi
 
       #deleting mount point
+      exportfs -u *:$point
       rm -rf $point
       if [ $? != 0 ]; then
         echo "Unsuccessful delete of unmounted mount point $point !"
-        exit 3
+        exit 2
       fi
 
       #remove image
@@ -72,9 +61,8 @@ if [ -n "$1" ]; then
       rm -rf $image
       if [ $? != 0 ]; then
         echo "Unsuccessful delete of image file $image"
-        exit 4
+        exit 3
       fi
-    echo "Successfully cleaned up mount point $point and deleted image file $image."
     done
     exit 0
   else

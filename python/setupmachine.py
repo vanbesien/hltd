@@ -615,7 +615,7 @@ if __name__ == "__main__":
         #do major ramdisk cleanup (unmount existing loop mount points, run directories and img files)
         try:
             subprocess.check_call(['/opt/hltd/scripts/unmountloopfs.sh','/fff/ramdisk'])
-            #delete existing run directories only if this machine will have non-default instances
+            #delete existing run directories to ensure there is space (if this machine has a non-main instance)
             if instances!=["main"]:
               os.popen('rm -rf /fff/ramdisk/run*')
         except subprocess.CalledProcessError, err1:

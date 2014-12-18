@@ -190,7 +190,7 @@ def cleanup_mountpoints(remount=True):
             except subprocess.CalledProcessError, err1:
                 logger.info("trying to kill users of ramdisk")
                 try:
-                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.ramdisk_subdirectory)])
+                    subprocess.check_call(['fuser','-km',os.path.join('/'+point,conf.ramdisk_subdirectory)])
                 except subprocess.CalledProcessError, err2:
                     logger.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
                 try:
@@ -203,7 +203,7 @@ def cleanup_mountpoints(remount=True):
             except subprocess.CalledProcessError, err1:
                 logger.info("trying to kill users of output")
                 try:
-                    subprocess.check_call(['/opt/hltd/scripts/killhogs.sh',os.path.join('/'+point,conf.output_subdirectory)])
+                    subprocess.check_call(['fuser','-km',os.path.join('/'+point,conf.output_subdirectory)])
                 except subprocess.CalledProcessError, err2:
                     logger.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
                 try:
@@ -409,7 +409,10 @@ class system_monitor(threading.Thread):
             res_path_temp = os.path.join(conf.watch_directory,'appliance','resource_summary_temp')
             res_path = os.path.join(conf.watch_directory,'appliance','resource_summary')
             selfhost = os.uname()[1]
+            counter=0
             while self.running:
+                counter+=1
+                counter=counter%5
                 self.threadEvent.wait(5)
                 if suspended:continue
                 tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
@@ -460,6 +463,9 @@ class system_monitor(threading.Thread):
                                 fp.write('entriesComplete=True')
                         except Exception as ex:
                             logger.warning('boxinfo file write failed +'+str(ex))
+                            if counter==0:
+                                #in case something happened with the BU server, try remount
+                                cleanup_mountpoints()
 
                     if conf.role == 'bu':
                         ramdisk = os.statvfs(conf.watch_directory)

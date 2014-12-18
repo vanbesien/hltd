@@ -13,81 +13,81 @@ if [ -n "$1" ]; then
         umask 0
 
         #protect from going wrong
-        if [ mountpoint == "/" ]; then exit 99; fi
-        if [ mountpoint == "//" ]; then exit 99; fi
-        if [ mountpoint == "/fff" ]; then exit 99; fi
-        if [ mountpoint == "/fff/" ]; then exit 99; fi
-        if [ mountpoint == "/fff/ramdisk" ]; then exit 99; fi 
-        if [ mountpoint == "/fff/ramdisk/" ]; then exit 99; fi 
-        if [ mountpoint == "fff/ramdisk" ]; then exit 99; fi 
-        if [ mountpoint == "fff/ramdisk/" ]; then exit 99; fi 
+        if [ "$mountpoint" == "/" ]; then exit 99; fi
+        if [ "$mountpoint" == "//" ]; then exit 99; fi
+        if [ "$mountpoint" == "/fff" ]; then exit 99; fi
+        if [ "$mountpoint" == "/fff/" ]; then exit 99; fi
+        if [ "$mountpoint" == "/fff/ramdisk" ]; then exit 99; fi 
+        if [ "$mountpoint" == "/fff/ramdisk/" ]; then exit 99; fi 
+        if [ "$mountpoint" == "fff/ramdisk" ]; then exit 99; fi 
+        if [ "$mountpoint" == "fff/ramdisk/" ]; then exit 99; fi 
 
         echo "makeloop script invoked for creating loop device disk $2 in ${basedir} of size $3 MB"
 
         if [ -d $mountpoint ]; then
 
-          var=`mount | grep $mountpoint | grep /dev/loop | awk '{print $3}'`
+          point=`mount | grep $mountpoint | grep /dev/loop | awk '{print $3}'`
 
-          #prevent FUs from writing boxinfo files by moving directory away
-          mv $var/appliance $var/appliance-delete
-          if [ $? != 0 ]; then
-              sleep 0
-          else
-              sleep 1
-          fi
-          echo "calling unmount $line"
-
-          umount $var
-
-          if [ $? != 0 ]; then
-            echo "Unsuccessful umount of ${mountpoint}"
-
-            killpid=`lsof $mountpoint | awk -v N=$2 '{print $2}' | grep -v PID`
-            myarr=($killpid)
-            for i in "${myarr[@]}"
-            do
-              echo "used by: $i. Trying to kill this process."
-              kill -9 $i
-            done
-            sleep 1
-            umount  $mountpoint
+          if [ "$point" != "" ]; then
+            #kill any processes that might use the mount point and remove from NFS
+            fuser -km $point
+            exportfs -u *:$point
+            #unmunt loop device
+            umount $point
             if [ $? != 0 ]; then
-              echo "Unsuccessful umount of ${mountpoint}. Still busy."
-              exit 2
+              sleep 0.1
+              fuser -km $point
+              exportfs -u *:$point
+              umount $point
+              if [ $? != 0 ]; then
+                echo "Unsuccessful umount of $point !"
+                exit 1
+              fi
             fi
+            exportfs -u *:$point
           fi
+        fi
+        #deleting mount point
+        rm -rf $mountpoint
+        if [ $? != 0 ]; then
+          echo "Unsuccessful delete of unmounted mount point $mountpoint !"
+          exit 2
+        fi
+
+        if [ -f $image ]; then
           chmod 755 $image
           rm -rf $image
           if [ $? != 0 ]; then
             echo "Unsuccessful delete old image file $image"
             exit 3
           fi
-          rm -rf $mountpoint
-          if [ $? != 0 ]; then
-            echo "Unsuccessful delete old mount point dir!"
-            exit 4
-          fi
         fi
     
-        chmod 555 $image
         dd if=/dev/zero of=$image bs=1048576 count=$sizemb >& /dev/null
         echo y | mkfs.ext3 $image > /dev/null
         #try mount
         mkdir $mountpoint
-
         if [ $? != 0 ]; then
           echo "Unsuccessful make mount point directory!"
           exit 4
         fi
- 
-        echo "mounting image directory..."
-        exec mount -o loop $image $mountpoint
 
+        echo "mounting image directory..."
+        mount -o loop,noatime $image $mountpoint
         if [ $? != 0 ]; then
           echo "Unsuccessful mount with parameters $image $mountpoint"
           exit 5
         fi
-        return 0
+
+        chmod -R 777 $mountpoint
+
+        exportfs -o rw,sync,no_root_squash,no_subtree_check *:$mountpoint
+        if [ $? != 0 ]; then
+          echo "exportfs command failed for $mountpoint !"
+          exit 6
+        fi
+        exit 0
+        #end
       else
         echo "base directory not found!"
       fi
@@ -100,6 +100,7 @@ if [ -n "$1" ]; then
 else
   echo "No parameter 1 given!"
 fi
+
 echo "Usage: makeloopfs.sh basedir subdir imgsize(MB)"
 exit 1
 
