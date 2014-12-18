@@ -103,7 +103,7 @@ class elasticBandBU:
                     break
                 else:
                     time.sleep(.5)
-                    if connectionAttempts>5:
+                    if (connectionAttempts%10)==0:
                         self.logger.error('unable to access to elasticsearch alias ' + alias_write + ' on '+self.es_server_url+' / '+self.ip_url)
                     continue
             except ElasticHttpError as ex:
@@ -333,7 +333,7 @@ class elasticCollectorBU():
         self.stoprequest.set()
 
     def run(self):
-	self.logger.info("elasticCollectorBU: start main loop (monitoring:"+inRunDir+")")
+	self.logger.info("elasticCollectorBU: start main loop (monitoring:"+self.inRunDir+")")
 	count = 0
 	while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
 	    if self.source:

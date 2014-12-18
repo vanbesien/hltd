@@ -928,7 +928,6 @@ class Run:
         self.threadEvent = threading.Event()
         global active_runs
         global active_runs_errors
-        global machine_blacklist
 
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STARTING)
@@ -956,13 +955,11 @@ class Run:
             while True:
                 self.menu = self.menu_directory+'/'+conf.menu_name
                 if os.path.exists(self.menu_directory+'/'+conf.arch_file):
-                    fp = open(self.menu_directory+'/'+conf.arch_file,'r')
-                    self.arch = fp.readline().strip()
-                    fp.close()
+                    with open(self.menu_directory+'/'+conf.arch_file,'r') as fp:
+                        self.arch = fp.readline().strip()
                 if os.path.exists(self.menu_directory+'/'+conf.version_file):
-                    fp = open(self.menu_directory+'/'+conf.version_file,'r')
-                    self.version = fp.readline().strip()
-                    fp.close()
+                    with open(self.menu_directory+'/'+conf.version_file,'r') as fp:
+                        self.version = fp.readline().strip()
                 try:
                     logger.info("Run "+str(self.runnumber)+" uses "+ self.version+" ("+self.arch+") with "+self.menu)
                     break
@@ -1518,8 +1515,6 @@ class RunRanger:
             if nr!=0:
                 try:
                     logger.info('new run '+str(nr))
-
-
                     #terminate quarantined runs     
                     for q_runnumber in runs_pending_shutdown:
                         q_run = filter(lambda x: x.runnumber==q_runnumber,run_list)

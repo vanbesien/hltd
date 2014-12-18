@@ -41,6 +41,7 @@ class LumiSectionRanger():
         self.jsdfile = None
         self.buffer = []        # file list before the first stream file
         self.emptyOutTemplate = None
+        self.useTimeout=120
 
 
 
@@ -52,7 +53,8 @@ class LumiSectionRanger():
     def start(self):
         self.run()
 
-    def stop(self):
+    def stop(self,timeout=120):
+        self.useTimeout=timeout
         self.stoprequest.set()
 
     def setSource(self,source):
@@ -75,7 +77,7 @@ class LumiSectionRanger():
                 time.sleep(0.5)
             #allow timeout in case 'complete' file is received and lumi is not closed
             if self.stoprequest.isSet() and self.emptyQueue.isSet() and self.checkClosure()==False:
-                if endTimeout<=-1: endTimeout=20
+                if endTimeout<=-1: endTimeout=self.useTimeout
                 if endTimeout==0: break
                 endTimeout-=1
 
@@ -247,7 +249,10 @@ class LumiSectionRanger():
     def processCompleteFile(self):
         self.logger.info("received run complete file")
         self.complete = self.infile
-        self.stop()
+        if "abortcomplete" in self.infile.filepath:
+            self.stop(timeout=60)
+        else:
+            self.stop(timeout=5)
 
     def checkClosure(self):
         for key in self.LSHandlerList.keys():
