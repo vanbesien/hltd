@@ -420,6 +420,7 @@ class system_monitor(threading.Thread):
                 if conf.role == 'bu':
                     resource_count = 0
                     cloud_count = 0
+                    lastFURuns = []
                     current_time = time.time()
                     for key in boxinfoFUMap:
                         if key==selfhost:continue
@@ -429,7 +430,12 @@ class system_monitor(threading.Thread):
                         resource_count+=int(entry[0]['used'])
                         resource_count+=int(entry[0]['broken'])
                         cloud_count+=int(entry[0]['cloud'])
-                    res_doc = {"resources":resource_count,"cloud":cloud_count}
+                        try:lastFURun.append(int(entry[0]['activeRuns'].strip('[]').split(',')[-1]))
+                        except:pass
+                    fuRuns = sorted(list(set(lastFURuns)))
+                    if len(fuRuns)>0:lastFURun = fuRuns[-1]
+                    else:lastFURun=1
+                    res_doc = {"resources":resource_count,"cloud":cloud_count,"lastFURun":lastFURun,"lastFULumi":-1}
                     with open(res_path_temp,'w') as fp:
                         json.dump(res_doc,fp)
                     os.rename(res_path_temp,res_path)

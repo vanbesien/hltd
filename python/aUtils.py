@@ -6,6 +6,7 @@ import simplejson as json
 import logging
 import zlib
 import subprocess
+import threading
 
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
@@ -40,6 +41,14 @@ class MonitorRanger:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.eventQueue = False
         self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
+        self.queueStatusPath = None
+        self.queuedLumiList = []
+        self.maxQueuedLumi=-1
+        #max seen/closed by anelastic thread
+        self.maxReceivedEoLS=-1
+        self.maxClosedLumi=-1
+        self.numOpenLumis=-1
+        self.lock = threading.Lock()
 
     def register_inotify_path(self,path,mask):
         self.inotifyWrapper.registerPath(path,mask)
@@ -48,20 +57,68 @@ class MonitorRanger:
         self.inotifyWrapper.start()
 
     def stop_inotify(self):
-        logging.info("MonitorRanger: Stop inotify wrapper")
+        self.logger.info("MonitorRanger: Stop inotify wrapper")
         self.inotifyWrapper.stop()
-        logging.info("MonitorRanger: Join inotify wrapper")
+        self.logger.info("MonitorRanger: Join inotify wrapper")
         self.inotifyWrapper.join()
-        logging.info("MonitorRanger: Inotify wrapper returned")
+        self.logger.info("MonitorRanger: Inotify wrapper returned")
 
     def process_default(self, event):
         self.logger.debug("event: %s on: %s" %(str(event.mask),event.fullpath))
         if self.eventQueue:
-            self.eventQueue.put(event)
+
+            if self.queueStatusPath!=None:
+                if self.checkNewLumi(event):
+                    self.eventQueue.put(event)
+            else:
+                self.eventQueue.put(event)
 
     def setEventQueue(self,queue):
         self.eventQueue = queue
 
+    def checkNewLumi(self,event):
+        if event.fullpath.endswith("_EoLS.jsn"):
+            try:
+                queuedLumi = int(os.path.basename(event.fullpath).split('_')[1][2:])
+                self.lock.acquire()
+                if queuedLumi not in self.queuedLumiList:
+                    if queuedLumi>self.maxQueuedLumi:
+                        self.maxQueuedLumi=queuedLumi
+                    queuedLumiList.append(queuedLumi)
+                    self.lock.release()
+                    self.updateQueueStatusFile()
+                else:
+                    self.lock.release()
+                    #skip if EoL for LS in queue has already been written once (e.g. double file create race)
+                    return False
+            except:
+                self.logger.warning("Unexpected EoLS filename: "+str(os.path.basename(event.fullpath)))
+                self.lock.release()
+        return True
+
+    def notifyLumi(self,ls,maxReceivedEoLS,maxClosedLumi,numOpenLumis):
+        if self.queueStatusPath==None:return
+        self.lock.acquire()
+        if ls!=None and ls in self.queuedLumiList:
+            self.queuedLumiList.remove(ls)
+        self.maxReceivedEoLS=maxReceivedEoLS
+        self.maxClosedLumi=maxClosedLumi
+        self.numOpenLumis=numOpenLumis
+        self.lock.release()
+        self.updateQueueStatusFile()
+
+    def setQueueStatusPath(self,path):
+        self.queueStatusPath = path
+
+    def updateQueueStatusFile(self):
+        if self.queueStatusPath==None:return
+        num_queued_lumis = len(self.queuedLumiList)
+        if not os.path.exists(self.queueStatusPath[:self.queueStatusPath.rfind('/')]):
+            self.logger.error("No queue status file directory")
+        else:
+            self.logger.info("Update status file - queued lumis:"+str(num_queued_lumis)+ " EoLS:: max queued:"+str(self.maxQueuedLumi) \
+                             +" un-queued:"+str(self.maxReceivedEoLS)+"  Lumis:: last closed:"+str(self.maxClosedLumi)+ " num open:"+str(self.numOpenLumis))
+        #TODO:write file
 
 class fileHandler(object):
     def __eq__(self,other):
