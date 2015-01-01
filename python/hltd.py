@@ -12,7 +12,6 @@ from signal import SIGINT
 import simplejson as json
 #import SOAPpy
 import threading
-import fcntl
 import CGIHTTPServer
 import BaseHTTPServer
 import cgitb
@@ -21,6 +20,7 @@ import demote
 import re
 import shutil
 import socket
+#import fcntl
 #import random
 
 #modules distributed with hltd
@@ -418,24 +418,37 @@ class system_monitor(threading.Thread):
 
                 #TODO:multiple mount points on BU
                 if conf.role == 'bu':
-                    resource_count = 0
+                    resource_count_idle = 0
+                    resource_count_used = 0
                     cloud_count = 0
                     lastFURuns = []
+                    activeRunQueuedLumisNum = -1
                     current_time = time.time()
                     for key in boxinfoFUMap:
                         if key==selfhost:continue
                         entry = boxinfoFUMap[key]
                         if current_time - entry[1] > 20:continue
-                        resource_count+=int(entry[0]['idles'])
-                        resource_count+=int(entry[0]['used'])
-                        resource_count+=int(entry[0]['broken'])
+                        resource_count_idle+=int(entry[0]['idles'])
+                        resource_count_used+=int(entry[0]['used'])
+                        resource_count_used+=int(entry[0]['broken'])
                         cloud_count+=int(entry[0]['cloud'])
-                        try:lastFURun.append(int(entry[0]['activeRuns'].strip('[]').split(',')[-1]))
+                        try:
+                            lastFURun.append(int(entry[0]['activeRuns'].strip('[]').split(',')[-1]))
+                        except:pass
+                        try:
+                            qlumis = int(entry[0]['activeRunNumQueuedLS'])
+                            if qlumis>activeRunQueuedLumisNum:activeRunQueuedLumisNum=qlumis
                         except:pass
                     fuRuns = sorted(list(set(lastFURuns)))
                     if len(fuRuns)>0:lastFURun = fuRuns[-1]
                     else:lastFURun=1
-                    res_doc = {"resources":resource_count,"cloud":cloud_count,"lastFURun":lastFURun,"lastFULumi":-1}
+                    res_doc = {
+                                "idle":resource_count_idle,
+                                "used":resource_count_used,
+                                "cloud":cloud_count,
+                                "activeFURun":lastFURun,
+                                "activeRunNumQueuedLS":activeRunQueuedLumisNum
+                              }
                     with open(res_path_temp,'w') as fp:
                         json.dump(res_doc,fp)
                     os.rename(res_path_temp,res_path)
@@ -465,6 +478,7 @@ class system_monitor(threading.Thread):
                                 fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                                 fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                                 fp.write('activeRunsErrors='+str(active_runs_errors).strip('[]')+'\n')
+                                fp.write('activeRunNumQueuedLS='+self.getLumiQueueStat())
                                 fp.write('entriesComplete=True')
                         except Exception as ex:
                             logger.warning('boxinfo file write failed +'+str(ex))
@@ -518,6 +532,15 @@ class system_monitor(threading.Thread):
                 pass
 
         logger.debug('exiting system monitor thread ')
+
+    def getLumiQueueStat(self):
+        try:
+            with open(conf.watch_directory,'run'+str(activeRuns[-1]).zfill(conf.run_number_padding),'open','queue_status.jsn') as fp:
+                #fcntl.flock(fp, fcntl.LOCK_EX)
+                statusDoc = json.load(fp)
+                return str(statusDoc["NumQueuedLS"])
+        except:
+          return "-1"
 
     def stop(self):
         logger.debug("system_monitor: request to stop")

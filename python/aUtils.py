@@ -7,6 +7,7 @@ import logging
 import zlib
 import subprocess
 import threading
+#import fcntl
 
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
@@ -118,7 +119,22 @@ class MonitorRanger:
         else:
             self.logger.info("Update status file - queued lumis:"+str(num_queued_lumis)+ " EoLS:: max queued:"+str(self.maxQueuedLumi) \
                              +" un-queued:"+str(self.maxReceivedEoLS)+"  Lumis:: last closed:"+str(self.maxClosedLumi)+ " num open:"+str(self.numOpenLumis))
-        #TODO:write file
+        #write json
+        doc = {"NumQueuedLS":num_queued_lumis,
+               "maxQueuedLS":self.maxQueuedLumi,
+               "NumReadFromQueueLS:":self.maxReceivedEoLS,
+               "MaxClosedLS":self.maxClosedLumi,
+               "NumReadOpenLS":self.numOpenLumis
+               }
+        #file is locked
+        try:
+            with open(self.queueStatusPath+TEMPEXT,"w") as fp:
+                #fcntl.flock(fp, fcntl.LOCK_EX)
+                json.dump(doc,fp)
+            os.rename(self.queueStatusPath+TEMPEXT,self.queueStatusPath)
+        except:
+            self.logger.error("Unable to open/write " + self.queueStatusPath)
+
 
 class fileHandler(object):
     def __eq__(self,other):
