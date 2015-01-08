@@ -49,6 +49,7 @@ bu_disk_list_output_instance=[]
 active_runs=[]
 active_runs_errors=[]
 resource_lock = threading.Lock()
+nsslock = threading.Lock()
 suspended=False
 entering_cloud_mode=False
 cloud_mode=False
@@ -478,7 +479,7 @@ class system_monitor(threading.Thread):
                                 fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                                 fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                                 fp.write('activeRunsErrors='+str(active_runs_errors).strip('[]')+'\n')
-                                fp.write('activeRunNumQueuedLS='+self.getLumiQueueStat())
+                                fp.write('activeRunNumQueuedLS='+self.getLumiQueueStat()+'\n')
                                 fp.write('entriesComplete=True')
                         except Exception as ex:
                             logger.warning('boxinfo file write failed +'+str(ex))
@@ -978,7 +979,6 @@ class Run:
         readMenuAttempts=0
         #polling for HLT menu directory
         while os.path.exists(self.menu_directory)==False and conf.dqm_machine==False and conf.role=='fu':
-            time.sleep(.2)
             readMenuAttempts+=1
             #10 seconds allowed before defaulting to local configuration
             if readMenuAttempts>50: break
@@ -1032,8 +1032,10 @@ class Run:
         self.lock = threading.Lock()
 
         if conf.use_elasticsearch == True:
+            global nsslock
             try:
                 if conf.role == "bu":
+                    nsslock.acquire()
                     logger.info("starting elasticbu.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.instance,str(self.runnumber)]
                 else:
@@ -1044,10 +1046,11 @@ class Run:
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
-
             except OSError as ex:
                 logger.error("failed to start elasticsearch client")
                 logger.error(ex)
+            try:nsslock.release()
+            except:pass
         if conf.role == "fu" and conf.dqm_machine==False:
             try:
                 logger.info("starting anelastic.py with arguments:"+self.dirname)
@@ -2158,18 +2161,20 @@ class hltd(Daemon2,object):
         watch_directory = os.readlink(conf.watch_directory) if os.path.islink(conf.watch_directory) else conf.watch_directory
         resource_base = os.readlink(conf.resource_base) if os.path.islink(conf.resource_base) else conf.resource_base
 
-        #start boxinfo elasticsearch updater
-        boxInfo = None
-        if conf.role == 'bu' and conf.use_elasticsearch == True:
-            boxInfo = BoxInfoUpdater(watch_directory,conf)
-            boxInfo.start()
-
         logCollector = None
         if conf.use_elasticsearch == True and logCollector==None:
             logger.info("starting logcollector.py")
             logcollector_args = ['/opt/hltd/python/logcollector.py']
             logcollector_args.append(self.instance)
+            time.sleep(.2)
             logCollector = subprocess.Popen(logcollector_args,preexec_fn=preexec_function,close_fds=True)
+
+        #start boxinfo elasticsearch updater
+        global nsslock
+        boxInfo = None
+        if conf.role == 'bu' and conf.use_elasticsearch == True:
+            boxInfo = BoxInfoUpdater(watch_directory,conf,nsslock)
+            boxInfo.start()
 
         runRanger = RunRanger(self.instance)
         runRanger.register_inotify_path(watch_directory,inotify.IN_CREATE)

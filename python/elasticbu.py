@@ -28,7 +28,7 @@ import socket
 #silence HTTP connection info from requests package
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-def getURLwithIP(url):
+def getURLwithIP(url,nsslock=None):
   try:
       prefix = ''
       if url.startswith('http://'):
@@ -43,7 +43,17 @@ def getURLwithIP(url):
       logging.error('could not parse URL ' +url)
       raise(ex)
   if url!='localhost':
-      ip = socket.gethostbyname(url)
+      if nsslock is not None:
+          try:
+              nsslock.acquire()
+              ip = socket.gethostbyname(url)
+              nsslock.release()
+          except Exception as ex:
+              try:nsslock.release()
+              except:pass
+              raise ex
+      else:
+          ip = socket.gethostbyname(url)
   else: ip='127.0.0.1'
 
   return prefix+str(ip)+suffix
@@ -51,7 +61,7 @@ def getURLwithIP(url):
 
 class elasticBandBU:
 
-    def __init__(self,conf,runnumber,startTime,runMode=True):
+    def __init__(self,conf,runnumber,startTime,runMode=True,nsslock=None):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.conf=conf
         self.es_server_url=conf.elastic_runindex_url
@@ -69,6 +79,7 @@ class elasticBandBU:
         self.runMode=runMode
         self.boxinfoFUMap = {}
         self.ip_url=None
+        self.nsslock=nsslock
         self.updateIndexMaybe(self.runindex_name,self.runindex_write,self.runindex_read,mappings.central_es_settings,mappings.central_runindex_mapping)
         self.updateIndexMaybe(self.boxinfo_name,self.boxinfo_write,self.boxinfo_read,mappings.central_es_settings,mappings.central_boxinfo_mapping)
         self.black_list=None
@@ -93,7 +104,7 @@ class elasticBandBU:
             connectionAttempts+=1
             try:
                 if retry or self.ip_url==None:
-                    self.ip_url=getURLwithIP(self.es_server_url)
+                    self.ip_url=getURLwithIP(self.es_server_url,self.nsslock)
                     self.es = ElasticSearch(self.ip_url,timeout=20,revival_delay=60)
 
                 #check if runindex alias exists
@@ -304,7 +315,7 @@ class elasticBandBU:
                 self.logger.error('elasticsearch connection error. retry.')
                 if self.stopping:return False
                 time.sleep(0.1)
-                ip_url=getURLwithIP(self.es_server_url)
+                ip_url=getURLwithIP(self.es_server_url,self.nsslock)
                 self.es = ElasticSearch(ip_url,timeout=20,revival_delay=60)
         return False
              
@@ -451,11 +462,12 @@ class elasticBoxCollectorBU():
 
 class BoxInfoUpdater(threading.Thread):
 
-    def __init__(self,ramdisk,conf):
+    def __init__(self,ramdisk,conf,nsslock):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stopping = False
         self.es=None
         self.conf=conf
+        self.nsslock=nsslock
 
         try:
             threading.Thread.__init__(self)
@@ -480,7 +492,7 @@ class BoxInfoUpdater(threading.Thread):
 
     def run(self):
         try:
-            self.es = elasticBandBU(self.conf,0,'',False)
+            self.es = elasticBandBU(self.conf,0,'',False,self.nsslock)
             if self.stopping:return
 
             self.ec = elasticBoxCollectorBU(self.es)
