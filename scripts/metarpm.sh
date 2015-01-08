@@ -160,6 +160,12 @@ ls
 pluginpath="/opt/fff/esplugins/"
 pluginname1="bigdesk"
 pluginfile1="lukas-vlcek-bigdesk-v2.4.0-2-g9807b92-mod.zip"
+pluginname2="head"
+pluginfile2="head-master.zip"
+pluginname3="HQ"
+pluginfile3="hq-master.zip"
+pluginname4="paramedic"
+pluginfile4="paramedic-master.zip"
 
 cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
@@ -209,6 +215,9 @@ echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
 echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
 
 cp $BASEDIR/esplugins/$pluginfile1 %{buildroot}/opt/fff/esplugins/$pluginfile1
+cp $BASEDIR/esplugins/$pluginfile2 %{buildroot}/opt/fff/esplugins/$pluginfile2
+cp $BASEDIR/esplugins/$pluginfile3 %{buildroot}/opt/fff/esplugins/$pluginfile3
+cp $BASEDIR/esplugins/$pluginfile4 %{buildroot}/opt/fff/esplugins/$pluginfile4
 cp $BASEDIR/esplugins/install.sh %{buildroot}/opt/fff/esplugins/install.sh
 cp $BASEDIR/esplugins/uninstall.sh %{buildroot}/opt/fff/esplugins/uninstall.sh
 
@@ -240,6 +249,9 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
 %attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1
+%attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile2
+%attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile3
+%attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile4
 %attr( 755 ,root, root) /opt/fff/esplugins/install.sh
 %attr( 755 ,root, root) /opt/fff/esplugins/uninstall.sh
 
@@ -257,10 +269,20 @@ python2.6 /opt/fff/setupmachine.py elasticsearch $params
 #update permissions in case new rpm changed uid/guid
 chown -R elasticsearch:elasticsearch /var/log/elasticsearch
 chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
-echo /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1
-/opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1
-echo /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
+
+#plugins
+/opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 > /dev/null
 /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
+
+/opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname2 > /dev/null
+/opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile2 $pluginname2
+
+/opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname3 > /dev/null
+/opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile3 $pluginname3
+
+/opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname4 > /dev/null
+/opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile4 $pluginname4
+
 /sbin/service elasticsearch start
 chkconfig --del elasticsearch
 chkconfig --add elasticsearch
@@ -316,6 +338,9 @@ if [ \$1 == 0 ]; then
 
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true
+  /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname2 || true
+  /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname3 || true
+  /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname4 || true
 
 
   python2.6 /opt/fff/setupmachine.py restore,hltd,elasticsearch
