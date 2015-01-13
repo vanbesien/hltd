@@ -421,6 +421,7 @@ class system_monitor(threading.Thread):
                 if conf.role == 'bu':
                     resource_count_idle = 0
                     resource_count_used = 0
+                    resource_count_broken = 0
                     cloud_count = 0
                     lastFURuns = []
                     activeRunQueuedLumisNum = -1
@@ -431,10 +432,10 @@ class system_monitor(threading.Thread):
                         if current_time - entry[1] > 20:continue
                         resource_count_idle+=int(entry[0]['idles'])
                         resource_count_used+=int(entry[0]['used'])
-                        resource_count_used+=int(entry[0]['broken'])
+                        resource_count_broken+=int(entry[0]['broken'])
                         cloud_count+=int(entry[0]['cloud'])
                         try:
-                            lastFURun.append(int(entry[0]['activeRuns'].strip('[]').split(',')[-1]))
+                            lastFURuns.append(int(entry[0]['activeRuns'].strip('[]').split(',')[-1]))
                         except:pass
                         try:
                             qlumis = int(entry[0]['activeRunNumQueuedLS'])
@@ -444,8 +445,10 @@ class system_monitor(threading.Thread):
                     if len(fuRuns)>0:lastFURun = fuRuns[-1]
                     else:lastFURun=1
                     res_doc = {
+                                "active_resources":resource_count_idle+resource_count_used,
                                 "idle":resource_count_idle,
                                 "used":resource_count_used,
+                                "broken":resource_count_broken,
                                 "cloud":cloud_count,
                                 "activeFURun":lastFURun,
                                 "activeRunNumQueuedLS":activeRunQueuedLumisNum
