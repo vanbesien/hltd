@@ -901,7 +901,7 @@ if __name__ == "__main__":
         #starting inotify thread
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
-        mr.setQueueStatusPath(os.path.join(watchDir,"open","queue_status.jsn"))
+        mr.setQueueStatusPath(os.path.join(watchDir,"open","queue_status.jsn"),os.path.join(watchDir,"mon","queue_status.jsn"))
         mr.register_inotify_path(watchDir,mask)
         mr.start_inotify()
 

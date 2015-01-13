@@ -14,7 +14,7 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,OUTPUTJSD,DEFINITION,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PJSNDATA,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,HLTRATES,HLTRATESLEGEND = range(26)            #file types 
+UNKNOWN,OUTPUTJSD,DEFINITION,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,PJSNDATA,PIDPB,PB,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS,QSTATUS = range(25)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
@@ -43,6 +43,8 @@ class MonitorRanger:
         self.eventQueue = False
         self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
         self.queueStatusPath = None
+        self.queueStatusPathMon = None
+        self.queueStatusPathDir = None
         self.queuedLumiList = []
         self.maxQueuedLumi=-1
         #max seen/closed by anelastic thread
@@ -108,14 +110,16 @@ class MonitorRanger:
         self.lock.release()
         self.updateQueueStatusFile()
 
-    def setQueueStatusPath(self,path):
+    def setQueueStatusPath(self,path,monpath):
         self.queueStatusPath = path
+        self.queueStatusPathMon = monpath
+        self.queueStatusPathDir = path[:path.rfind('/')]
 
     def updateQueueStatusFile(self):
         if self.queueStatusPath==None:return
         num_queued_lumis = len(self.queuedLumiList)
-        if not os.path.exists(self.queueStatusPath[:self.queueStatusPath.rfind('/')]):
-            self.logger.error("No queue status file directory")
+        if not os.path.exists(self.queueStatusPathDir):
+            self.logger.error("No directory to write queueStatusFile: "+str(self.queueStatusPathDir))
         else:
             self.logger.info("Update status file - queued lumis:"+str(num_queued_lumis)+ " EoLS:: max queued:"+str(self.maxQueuedLumi) \
                              +" un-queued:"+str(self.maxReceivedEoLS)+"  Lumis:: last closed:"+str(self.maxClosedLumi)+ " num open:"+str(self.numOpenLumis))
@@ -128,12 +132,18 @@ class MonitorRanger:
                }
         #file is locked
         try:
-            with open(self.queueStatusPath+TEMPEXT,"w") as fp:
-                #fcntl.flock(fp, fcntl.LOCK_EX)
-                json.dump(doc,fp)
-            os.rename(self.queueStatusPath+TEMPEXT,self.queueStatusPath)
+            if self.queueStatusPath!=None:
+                with open(self.queueStatusPath+TEMPEXT,"w") as fp:
+                    #fcntl.flock(fp, fcntl.LOCK_EX)
+                    json.dump(doc,fp)
+                os.rename(self.queueStatusPath+TEMPEXT,self.queueStatusPath)
+                try:
+                    shutil.copyfile(self.queueStatusPath,self.queueStatusPathMon)
+                except:
+                    pass
         except:
             self.logger.error("Unable to open/write " + self.queueStatusPath)
+
 
 
 class fileHandler(object):
@@ -197,11 +207,10 @@ class fileHandler(object):
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
                 elif "_TRANSFER" in name: return DEFINITION
+                elif "QUEUE_STATUS" in name: return QSTATUS
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
             if "STREAM" in name and "_PID" not in name: return OUTPUT
-            if "_HLTRATESLEGEND" in name: return  HLTRATESLEGEND
-            elif "_HLTRATES" in name: return  HLTRATES
         if ext==".pb":
             if "_PID" not in name: return PB
             else: return PIDPB
@@ -224,7 +233,6 @@ class fileHandler(object):
         elif filetype in [DAT,PB,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
-        elif filetype == HLTRATES:self.run,self.ls,self.ftype,self.pid = splitname
         else: 
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3

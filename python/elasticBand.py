@@ -153,58 +153,24 @@ class elasticBand():
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['index']=int(index[5:])
-        document['dest']=os.uname()[1]
+        document['dest']=self.hostname
         document['process']=int(prc[3:])
         try:document.pop('definition')
 	except:pass
         self.prcinBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'prc-in',document)
 
-
-    def elasticize_hltrateslegend(self,infile):
+    def elasticize_queuestatus(self,infile):
         document,ret = self.imbue_jsn(infile)
         if ret<0:return False
-        datadict={}
-        #datadict['pid'] = int(infile.pid[3:])
-        try:
-            paths=document['data'][0].strip('[]')
-            datasets=document['data'][1].strip('[]')
-            datadict['dataset-names']=datasets.split(',') if  len(datasets)>0 else []
-            datadict['path-names']=paths.split(',') if len(paths)>0 else []
-        except:
-            pass
-        self.tryIndex('hltrates-legend',datadict)
+        document['fm_date']=str(infile.mtime)
+        document['host']=self.hostname
+        self.tryIndex('qstatus',document)
         return True
- 
 
-    def elasticize_hltrates(self,infile):
-        document,ret = self.imbue_jsn(infile)
-        if ret<0:return False
-        datadict={}
-        try:
-            datadict['ls'] = int(infile.ls[2:])
-            datadict['pid'] = int(infile.pid[3:])
-	    try:
-	        if json.loads(document['data'][0])[0]==0:return True
-            except:
-		pass
-            datadict['processed']=json.loads(document['data'][0])[0]
-            datadict['path-wasrun']=json.loads(document['data'][1])
-            datadict['path-afterl1seed']=json.loads(document['data'][2])
-            datadict['path-afterprescale']=json.loads(document['data'][3])
-            datadict['path-accepted']=json.loads(document['data'][4])
-            datadict['path-rejected']=json.loads(document['data'][5])
-            datadict['path-errors']=json.loads(document['data'][6])
-            datadict['dataset-accepted']=json.loads(document['data'][7])
-        except:
-            return False
-        self.tryIndex('hltrates',datadict)
-        return True
- 
- 
     def elasticize_fu_complete(self,timestamp):
         document = {}
-        document['host']=os.uname()[1]
+        document['host']=self.hostname
         document['fm_date']=timestamp
         self.tryIndex('fu-complete',document)
  
