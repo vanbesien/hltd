@@ -411,7 +411,7 @@ class system_monitor(threading.Thread):
             selfhost = os.uname()[1]
             counter=0
             while self.running:
-                self.threadEvent.wait(5 if counter>0 else: 1)
+                self.threadEvent.wait(5 if counter>0 else 1)
                 counter+=1
                 counter=counter%5
                 if suspended:continue
