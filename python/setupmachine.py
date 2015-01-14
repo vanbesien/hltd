@@ -167,7 +167,7 @@ def getBUAddr(parentTag,hostname):
                 con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                           cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
         else:
-            con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@int2r2-v.cern.ch:10121/int2r_lb.cern.ch',
+            con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_R/'+dbpwd+'@int2r2-v.cern.ch:10121/int2r_lb.cern.ch',
                           cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
     
     #print con.version

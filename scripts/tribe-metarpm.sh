@@ -6,7 +6,7 @@ BASEDIR=$PWD
 
 PACKAGENAME="fffmeta-tribe"
 
-PARAMCACHE="tribe-paramcache"
+PARAMCACHE="paramcache"
 
 echo "Using cache file $PARAMCACHE"
 
@@ -24,17 +24,14 @@ else
   done
 fi
 
-
-
-
-
 echo "Enviroment (prod,vm) (press enter for \"${lines[0]}\"):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
 lines[0]=$readin
 fi
-
+nousevar=$readin
+nousevar=$readin
 lines[1]="null"
 lines[2]="null"
 
@@ -85,17 +82,6 @@ do
   params="$params ${lines[i]}"
 done
 
-#write cache
-if [ -f $SCRIPTDIR/$PARAMCACHE ];
-then
-rm -rf -f $SCRIPTDIR/$PARAMCACHE
-fi
-for (( i=0; i < 12; i++ ))
-do
-  echo ${lines[$i]} >> $SCRIPTDIR/$PARAMCACHE
-done
-
-chmod 500 $SCRIPTDIR/$PARAMCACHE
 # create a build area
 
 echo "removing old build area"

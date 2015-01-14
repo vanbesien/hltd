@@ -4,16 +4,11 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPTDIR/..
 BASEDIR=$PWD
 
-PACKAGENAME="fffmeta"
-
 PARAMCACHE="paramcache"
 
 if [ -n "$1" ]; then
-  PARAMCACHE=$1
-fi
-
-if [ -n "$2" ]; then
-  PACKAGENAME=$2
+  #PARAMCACHE=$1
+  PARAMCACHE=${1##*/}
 fi
 
 echo "Using cache file $PARAMCACHE"
@@ -138,12 +133,21 @@ done
 chmod 500 $SCRIPTDIR/$PARAMCACHE
 # create a build area
 
+if [ ${lines[0]} == "prod" ]; then
+  PACKAGENAME="fffmeta"
+elif [ ${lines[0]} == "vm" ]; then
+  PACKAGENAME="fffmeta-vm"
+else
+  echo "Environment ${lines[0]} not supported. Available: prod or vm"
+  exit 1
+fi
+
 echo "removing old build area"
-rm -rf /tmp/fffmeta-build-tmp
+rm -rf /tmp/$PACKAGENAME-build-tmp
 echo "creating new build area"
-mkdir  /tmp/fffmeta-build-tmp
+mkdir  /tmp/$PACKAGENAME-build-tmp
 ls
-cd     /tmp/fffmeta-build-tmp
+cd     /tmp/$PACKAGENAME-build-tmp
 mkdir BUILD
 mkdir RPMS
 TOPDIR=$PWD
