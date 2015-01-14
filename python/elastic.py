@@ -60,7 +60,7 @@ class elasticCollector():
         filetype = infile.filetype
         eventtype = self.eventtype    
         if eventtype & (inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO) :
-            if filetype in [FAST,SLOW]:
+            if filetype in [FAST,SLOW,QSTATUS]:
                 self.elasticize()
             elif self.esDirName in infile.dir:
                 if filetype in [INDEX,STREAM,OUTPUT,STREAMDQMHISTOUTPUT]:self.elasticize()
@@ -111,6 +111,9 @@ class elasticCollector():
                 self.logger.info(name+" going into fu-out")
                 es.elasticize_fu_out(infile)
                 self.infile.deleteFile()
+            elif filetype == QSTATUS:
+                self.logger.debug(name+" going into qstatus")
+                es.elasticize_queue_status(infile)
             elif filetype == COMPLETE:
                 self.logger.info(name+" going into fu-complete")
                 dt=os.path.getctime(infile.filepath)
@@ -160,7 +163,7 @@ if __name__ == "__main__":
     monMask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
     tempMask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
 
-    logger.info("starting elastic for "+rundirname)
+    logger.info("starting elastic for "+rundirname[:3]+' '+rundirname[3:])
 
     try:
         os.makedirs(monDir)

@@ -233,6 +233,7 @@ class elasticBandBU:
         try:
             document = infile.data
             document['id']=basename
+            document['buhost']=self.host
             self.index_documents('boxinfo',[document])
         except Exception as ex:
             self.logger.warning('box info not injected: '+str(ex))

@@ -164,7 +164,8 @@ central_boxinfo_mapping = {
             '_id'        :{'path':'id'},
             'properties' : {
               'fm_date'       :{'type':'date'},
-              'id'            :{'type':'string'},
+              'id'            :{'type':'string',"index":"not_analyzed"},
+              'buhost'        :{'type':'string',"index":"not_analyzed"},
               'broken'        :{'type':'integer'},
               'used'          :{'type':'integer'},
               'idles'         :{'type':'integer'},

@@ -4,17 +4,9 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPTDIR/..
 BASEDIR=$PWD
 
-PACKAGENAME="fffmeta"
+PACKAGENAME="fffmeta-tribe"
 
-PARAMCACHE="paramcache"
-
-if [ -n "$1" ]; then
-  PARAMCACHE=$1
-fi
-
-if [ -n "$2" ]; then
-  PACKAGENAME=$2
-fi
+PARAMCACHE="tribe-paramcache"
 
 echo "Using cache file $PARAMCACHE"
 
@@ -32,6 +24,10 @@ else
   done
 fi
 
+
+
+
+
 echo "Enviroment (prod,vm) (press enter for \"${lines[0]}\"):"
 readin=""
 read readin
@@ -39,19 +35,8 @@ if [ ${#readin} != "0" ]; then
 lines[0]=$readin
 fi
 
-echo "ES server URL containg common run index (press enter for \"${lines[1]}\"):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[1]=$readin
-fi
-
-echo "CMSSW base (press enter for \"${lines[2]}\"):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[2]=$readin
-fi
+lines[1]="null"
+lines[2]="null"
 
 echo "HWCFG DB server (press enter for \"${lines[3]}\"):"
 readin=""
@@ -89,35 +74,10 @@ if [ ${#readin} != "0" ]; then
 lines[7]=$readin
 fi
 
-echo "job username (press enter for: \"${lines[8]}\"):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[8]=$readin
-fi
-
-echo "number of threads per process (press enter for: ${lines[9]}):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[9]=$readin
-fi
-
-echo "number of framework streams per process (press enter for: ${lines[10]}):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[10]=$readin
-fi
-
-echo "CMSSW log collection level (DEBUG,INFO,WARNING,ERROR or FATAL) (press enter for: ${lines[11]}):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[11]=$readin
-fi
-
-
+lines[8]="null"
+lines[9]="null"
+lines[10]="null"
+lines[11]="null"
 
 params=""
 for (( i=0; i < 12; i++ ))
@@ -139,11 +99,11 @@ chmod 500 $SCRIPTDIR/$PARAMCACHE
 # create a build area
 
 echo "removing old build area"
-rm -rf /tmp/fffmeta-build-tmp
+rm -rf /tmp/fffmeta-tribe-build-tmp
 echo "creating new build area"
-mkdir  /tmp/fffmeta-build-tmp
+mkdir  /tmp/fffmeta-tribe-build-tmp
 ls
-cd     /tmp/fffmeta-build-tmp
+cd     /tmp/fffmeta-tribe-build-tmp
 mkdir BUILD
 mkdir RPMS
 TOPDIR=$PWD
@@ -162,7 +122,7 @@ pluginfile4="paramedic-master.zip"
 
 cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
-cat > fffmeta.spec <<EOF
+cat > fffmeta-tribe.spec <<EOF
 Name: $PACKAGENAME
 Version: 1.6.0
 Release: 0
@@ -174,16 +134,11 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.2.0, hltd >= 1.6.0, cx_Oracle >= 5.1.2, java-1.7.0-openjdk
+Requires:elasticsearch >= 1.4.2, cx_Oracle >= 5.1.2, java-1.7.0-openjdk, httpd >= 2.2.15, php >= 5.3.3, php-oci8 >= 1.4.9 
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py
-Provides:/opt/fff/instances.input
 Provides:/etc/init.d/fffmeta
-
-#Provides:/opt/fff/backup/elasticsearch.yml
-#Provides:/opt/fff/backup/elasticsearch
-#Provides:/opt/fff/backup/hltd.conf
 
 %description
 fffmeta configuration setup package
@@ -203,9 +158,8 @@ mkdir -p opt/fff/esplugins
 mkdir -p opt/fff/backup
 mkdir -p etc/init.d/
 cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
-cp $BASEDIR/etc/instances.input %{buildroot}/opt/fff/instances.input
 echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
-echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
+echo python2.6 /opt/fff/setupmachine.py elasticsearch,web $params >> %{buildroot}/opt/fff/configurefff.sh 
 
 cp $BASEDIR/esplugins/$pluginfile1 %{buildroot}/opt/fff/esplugins/$pluginfile1
 cp $BASEDIR/esplugins/$pluginfile2 %{buildroot}/opt/fff/esplugins/$pluginfile2
@@ -238,7 +192,6 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 %attr( 755 ,root, root) /opt/fff/setupmachine.py
 %attr( 755 ,root, root) /opt/fff/setupmachine.pyc
 %attr( 755 ,root, root) /opt/fff/setupmachine.pyo
-%attr( 755 ,root, root) /opt/fff/instances.input
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
 %attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1
@@ -258,12 +211,11 @@ chkconfig --add fffmeta
 #echo "triggered on elasticsearch update or install"
 /sbin/service elasticsearch stop
 python2.6 /opt/fff/setupmachine.py restore,elasticsearch
-python2.6 /opt/fff/setupmachine.py elasticsearch $params
+python2.6 /opt/fff/setupmachine.py elasticsearch,web $params
 #update permissions in case new rpm changed uid/guid
 chown -R elasticsearch:elasticsearch /var/log/elasticsearch
 chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
 
-#plugins
 /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 > /dev/null
 /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
 
@@ -276,73 +228,35 @@ chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
 /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname4 > /dev/null
 /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile4 $pluginname4
 
-/sbin/service elasticsearch start
 chkconfig --del elasticsearch
 chkconfig --add elasticsearch
+chkconfig --add httpd
+#todo:kill java process if running to have clean restart
+/sbin/service elasticsearch start
+/sbin/service httpd restart || true
 
-#taskset elasticsearch process
-#sleep 1
-#ESPID=`cat /var/run/elasticsearch/elasticsearch.pid` || (echo "could not find elasticsearch pid";ESPID=0)
-#if[ \$ESPID !="0" ]; then
-#taskset -pc 3,4 \$ESPID
-#fi
-
-%triggerin -- hltd
-#echo "triggered on hltd update or install"
-
-/sbin/service hltd stop || true
-/sbin/service soap2file stop || true
-rm -rf /etc/hltd.instances
-
-python2.6 /opt/fff/setupmachine.py restore,hltd
-python2.6 /opt/fff/setupmachine.py hltd $params
-
-#adjust ownership of unpriviledged child process log files
-
-if [ -f /var/log/hltd/elastic.log ]; then
-chown ${lines[8]} /var/log/hltd/elastic.log
-fi
-
-if [ -f /var/log/hltd/anelastic.log ]; then
-chown ${lines[8]} /var/log/hltd/anelastic.log
-fi
-
-#set up resources for hltd
-/opt/hltd/python/fillresources.py
-
-/sbin/service hltd restart || true
-/sbin/service soap2file restart || true
-
-chkconfig --del hltd
-chkconfig --del soap2file
-
-chkconfig --add hltd
-chkconfig --add soap2file
 %preun
 
 if [ \$1 == 0 ]; then 
 
   chkconfig --del fffmeta
   chkconfig --del elasticsearch
-  chkconfig --del hltd
-  chkconfig --del soap2file
-
-  /sbin/service hltd stop || true
+  chkconfig --del httpd
 
   /sbin/service elasticsearch stop || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname2 || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname3 || true
   /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname4 || true
+  /sbin/service httpd stop || true
 
 
-  python2.6 /opt/fff/setupmachine.py restore,hltd,elasticsearch
+  python2.6 /opt/fff/setupmachine.py restore,elasticsearch
 fi
 
-#TODO:
 #%verifyscript
 
 EOF
 
-rpmbuild --target noarch --define "_topdir `pwd`/RPMBUILD" -bb fffmeta.spec
+rpmbuild --target noarch --define "_topdir `pwd`/RPMBUILD" -bb fffmeta-tribe.spec
 

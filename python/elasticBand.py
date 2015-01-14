@@ -160,7 +160,7 @@ class elasticBand():
         self.prcinBuffer.setdefault(ls,[]).append(document)
         #self.es.index(self.indexName,'prc-in',document)
 
-    def elasticize_queuestatus(self,infile):
+    def elasticize_queue_status(self,infile):
         document,ret = self.imbue_jsn(infile)
         if ret<0:return False
         document['fm_date']=str(infile.mtime)

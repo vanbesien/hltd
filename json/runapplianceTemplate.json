@@ -276,19 +276,19 @@
     },
     "qstatus": {
       "properties": {
-        "NumQueuedLS": {
+        "numQueuedLS": {
           "type": "integer"
         },
         "maxQueuedLS": {
           "type": "integer"
         },
-        "NumReadFromQueueLS": {
+        "numReadFromQueueLS": {
           "type": "integer"
         },
-        "MaxClosedLS": {
+        "maxClosedLS": {
           "type": "integer"
         },
-        "NumReadOpenLS": {
+        "numReadOpenLS": {
           "type": "integer"
         },
         "fm_date": {

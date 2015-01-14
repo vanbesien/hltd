@@ -44,6 +44,19 @@ dqm_list = ["bu-c2f13-31-01","fu-c2f13-39-01","fu-c2f13-39-02",
             "fu-c2f13-39-03","fu-c2f13-39-04"]
 ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
            "fu-c2f13-41-03","fu-c2f13-41-04"]
+
+#es_cdaq_list = ["srv-c2a11-07-01","srv-c2a11-08-01","srv-c2a11-09-01","srv-c2a11-10-01",
+#                "srv-c2a11-11-01","srv-c2a11-14-01","srv-c2a11-15-01","srv-c2a11-16-01",
+#                "srv-c2a11-17-01","srv-c2a11-18-01","srv-c2a11-19-01","srv-c2a11-20-01",
+#                "srv-c2a11-21-01","srv-c2a11-22-01","srv-c2a11-23-01","srv-c2a11-26-01",
+#                "srv-c2a11-27-01","srv-c2a11-28-01","srv-c2a11-29-01","srv-c2a11-30-01"]
+#
+#es_tribe_list = ["srv-c2a11-31-01","srv-c2a11-32-01","srv-c2a11-33-01","srv-c2a11-34-01",
+#                "srv-c2a11-35-01","srv-c2a11-38-01","srv-c2a11-39-01","srv-c2a11-40-01",
+#                "srv-c2a11-41-01","srv-c2a11-42-01"]
+
+tribe_ignore_list = ['bu-c2f13-29-01','bu-c2f13-31-01']
+
 myhost = os.uname()[1]
 
 #testing dual mount point
@@ -59,10 +72,22 @@ def getmachinetype():
     #print "running on host ",myhost
     if   myhost.startswith('dvrubu-') or myhost.startswith('dvfu-') : return 'daq2val','fu'
     elif myhost.startswith('dvbu-') : return 'daq2val','bu'
-    elif myhost.startswith('bu-') : return 'daq2','bu'
     elif myhost.startswith('fu-') : return 'daq2','fu'
-    elif myhost.startswith('cmsdaq-401b28') : return 'test','fu'
-    elif myhost.startswith('dvfu-') : return 'test','fu'
+    elif myhost.startswith('bu-') : return 'daq2','bu'
+    elif myhost.startswith('srv-') :
+        try:
+            es_cdaq_list = socket.gethostbyname_ex('es-cdaq')[2]
+            es_tribe_list = socket.gethostbyname_ex('es-tribe')[2]
+            myaddr = socket.gethostbyname(myhost)
+            if myaddr in es_cdaq_list:
+                return 'es','escdaq'
+            elif myaddr in es_tribe_list:
+                return 'es','tribe'
+            else:
+                return 'unknown','unknown'
+        except socket.gaierror, ex:
+            print 'dns lookup error ',str(ex)
+            raise ex  
     else: 
        print "unknown machine type"
        return 'unknown','unknown'
@@ -195,6 +220,58 @@ def getBUAddr(parentTag,hostname):
     #print retval
     return retval
 
+def getAllBU(requireFU=False):
+
+    #setups = ['daq2','daq2val']
+    parentTag = 'daq2'
+    if True:
+    #if parentTag == 'daq2':
+        if dbhost.strip()=='null':
+            #con = cx_Oracle.connect('CMS_DAQ2_HW_CONF_W','pwd','cms_rcms',
+            con = cx_Oracle.connect(dblogin,dbpwd,dbsid,
+                      cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+        else:
+            con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
+                      cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+    #else:
+    #    con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@int2r2-v.cern.ch:10121/int2r_lb.cern.ch',
+    #                  cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+ 
+    cur = con.cursor()
+    retval = []
+    if requireFU==False:
+        qstring= "select dnsname from DAQ_EQCFG_DNSNAME where (dnsname like 'bu-%' OR dnsname like '__bu-%') \
+                  AND eqset_id = (select eqset_id from DAQ_EQCFG_EQSET where tag='"+parentTag.upper()+"' AND \
+                                  ctime = (SELECT MAX(CTIME) FROM DAQ_EQCFG_EQSET WHERE tag='"+parentTag.upper()+"'))"
+
+    else:
+        qstring = "select attr_value from \
+	                DAQ_EQCFG_HOST_ATTRIBUTE ha,       \
+	                DAQ_EQCFG_HOST_NIC hn,              \
+	                DAQ_EQCFG_DNSNAME d                  \
+	                where                                 \
+	                ha.eqset_id=hn.eqset_id AND            \
+			hn.eqset_id=d.eqset_id AND              \
+			ha.host_id = hn.host_id AND              \
+			ha.attr_name like 'myBU%' AND             \
+			hn.nic_id = d.nic_id AND                   \
+			d.dnsname like 'fu-%'                       \
+			AND d.eqset_id = (select eqset_id from DAQ_EQCFG_EQSET \
+			where tag='"+parentTag.upper()+"' AND                    \
+			ctime = (SELECT MAX(CTIME) FROM DAQ_EQCFG_EQSET WHERE tag='"+parentTag.upper()+"'))"
+
+
+
+
+    cur.execute(qstring)
+
+    for res in cur:
+        retval.append(res[0])
+    cur.close()
+    retval = sorted(list(set(map(lambda v: v.split('.')[0], retval))))
+    print retval
+    return retval
+
 
 def getSelfDataAddr(parentTag):
 
@@ -251,11 +328,14 @@ def getInstances(hostname):
 
 
 class FileManager:
-    def __init__(self,file,sep,edited,os1='',os2=''):
+    def __init__(self,file,sep,edited,os1='',os2='',recreate=False):
         self.name = file
-        f = open(file,'r')
-        self.lines = f.readlines()
-        f.close()
+        if recreate==False:
+            f = open(file,'r')
+            self.lines = f.readlines()
+            f.close()
+        else:
+            self.lines=[]
         self.sep = sep
         self.regs = []
         self.remove = []
@@ -360,6 +440,7 @@ if __name__ == "__main__":
         if 'elasticsearch' in selection:
             restoreFileMaybe(elasticsysconf)
             restoreFileMaybe(elasticconf)
+
         sys.exit(0)
 
     argvc += 1
@@ -456,7 +537,7 @@ if __name__ == "__main__":
     resourcefract = '0.5'
 
     if cluster == 'daq2val':
-        runindex_name = 'dv'        
+        runindex_name = 'dv'
     elif cluster == 'daq2':
         runindex_name = 'cdaq'
         if myhost in minidaq_list:
@@ -482,9 +563,6 @@ if __name__ == "__main__":
                 cmssw_base = '/home/dqmdevlocal'
                 execdir = '/home/dqmdevlocal/output' ##not yet 
 
-    else:
-        runindex_name = 'test' 
-
     buName = None
     buDataAddr=[]
 
@@ -501,18 +579,18 @@ if __name__ == "__main__":
             if buName == None or len(buDataAddr)==0:
                 print "no BU found for this FU in the dabatase"
                 sys.exit(-1)
-      elif cluster =='test':
-          buName = os.uname()[1].split(".")[0]
-          buDataAddr = [buName]
       else:
           print "FU configuration in cluster",cluster,"not supported yet !!"
           sys.exit(-2)
  
     elif type == 'bu':
-          if env == "vm":
-              buName = os.uname()[1].split(".")[0]
-          else:
-              buName = os.uname()[1]
+        if env == "vm":
+            buName = os.uname()[1].split(".")[0]
+        else:
+            buName = os.uname()[1]
+    elif type == 'tribe':
+        buDataAddr = getAllBU(requireFU=False)
+        buName='es-tribe'
 
     print "running configuration for machine",cnhostname,"of type",type,"in cluster",cluster,"; appliance bu is:",buName
 
@@ -535,38 +613,89 @@ if __name__ == "__main__":
         if esEdited == False:
           shutil.copy(elasticconf,os.path.join(backup_dir,os.path.basename(elasticconf)))
 
-        escfg = FileManager(elasticconf,':',esEdited,'',' ')
+        if type == 'fu' or type == 'bu':
 
-        escfg.reg('cluster.name',clusterName)
-        escfg.reg('node.name',cnhostname)
-        essyscfg = FileManager(elasticsysconf,'=',essysEdited)
-        essyscfg.reg('ES_HEAP_SIZE','1G')
-        essyscfg.commit()
+            essyscfg = FileManager(elasticsysconf,'=',essysEdited)
+            essyscfg.reg('ES_HEAP_SIZE','1G')
+            essyscfg.commit()
 
-        if type == 'fu':
+            escfg = FileManager(elasticconf,':',esEdited,'',' ')
+            escfg.reg('cluster.name',clusterName)
+            escfg.reg('node.name',cnhostname)
             escfg.reg('discovery.zen.ping.multicast.enabled','false')
-            if env=="vm":
-                escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + "\"]")
-            else:
-                escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
             escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
-            escfg.reg('indices.fielddata.cache.size', '50%')
-            if cluster != 'test':
+
+            if type == 'fu':
+                if env=="vm":
+                    escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + "\"]")
+                else:
+                    escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
+                escfg.reg('indices.fielddata.cache.size', '50%')
                 escfg.reg('node.master','false')
                 escfg.reg('node.data','true')
-        if type == 'bu':
-            escfg.reg('network.publish_host',es_publish_host)
-            #escfg.reg('discovery.zen.ping.multicast.enabled','false')
-            #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+elastic_host2+'\" ]')
+            if type == 'bu':
+                #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+elastic_host2+'\" ]')
+                escfg.reg('node.master','true')
+                escfg.reg('node.data','false')
+            escfg.commit()
+
+        if type == 'tribe':
+            essyscfg = FileManager(elasticsysconf,'=',essysEdited)
+            essyscfg.reg('ES_HEAP_SIZE','12G')
+            essyscfg.commit()
+
+            escfg = FileManager(elasticconf,':',esEdited,'',' ',recreate=True)
+            escfg.reg('cluster.name','es-tribe')
+            escfg.reg('discovery.zen.ping.multicast.enabled','false')
+            #escfg.reg('discovery.zen.ping.unicast.hosts','['+','.join(buDataAddr)+']')
+            escfg.reg('transport.tcp.compress','true')
+            bustring = "["
+            for bu in buDataAddr:
+                if bu in tribe_ignore_list:continue
+
+                try:
+                    socket.gethostbyname_ex(bu+'.cms')
+                except:
+                    print "skipping",bu," - unable to lookup IP address"
+                    continue
+                if bustring!="[":bustring+=','
+                bustring+='"'+bu+'.cms'+'"'
+            bustring += "]"
+            escfg.reg('discovery.zen.ping.unicast.hosts',bustring)
+
+            escfg.reg('tribe','')
+            i=1;
+            for bu in buDataAddr:
+                if bu in tribe_ignore_list:continue
+
+                try:
+                    socket.gethostbyname_ex(bu+'.cms')
+                except:
+                #    print "skipping",bu," - unable to lookup IP address"
+                    continue
+
+                escfg.reg('    t'+str(i),'')
+                #escfg.reg('         discovery.zen.ping.unicast.hosts', '["'+bu+'.cms"]')
+                escfg.reg('         cluster.name', 'appliance_'+bu)
+                i=i+1
+            escfg.commit()
+
+        if type == 'escdaq':
+            essyscfg = FileManager(elasticsysconf,'=',essysEdited)
+            essyscfg.reg('ES_HEAP_SIZE','10G')
+            essyscfg.commit()
+
+            escfg = FileManager(elasticconf,':',esEdited,'',' ',recreate=True)
+            escfg.reg('cluster.name','es-cdaq')
+            escfg.reg('discovery.zen.minimum_master_nodes','11')
+            escfg.reg('index.mapper.dynamic','false')
+            escfg.reg('action.auto_create_index','false')
             escfg.reg('transport.tcp.compress','true')
             escfg.reg('node.master','true')
-            if elastic_host.startswith('http://localhost'):
-                escfg.reg('node.data','true')
-            else:
-                escfg.reg('node.data','false')
+            escfg.reg('node.data','true')
+            escfg.commit()
 
-        escfg.commit()
 
     if "hltd" in selection:
 
@@ -712,4 +841,10 @@ if __name__ == "__main__":
           hltdcfg.reg('cmssw_streams',nfwkstreams,'[CMSSW]')
           hltdcfg.reg('resource_use_fraction',resourcefract,'[Resources]')
           hltdcfg.commit()
+    if "web" in selection:
+          try:os.rmdir('/var/www/html')
+          except:
+              try:os.unlink('/var/www/html')
+              except:pass
+          os.symlink('/es-web','/var/www/html')
 

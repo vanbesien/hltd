@@ -347,7 +347,7 @@ def updateBlacklist():
                 try:
                     static_black_list = json.load(fi)
                     for item in static_black_list:
-                        black_list+=item
+                        black_list.append(item)
                     logger.info("found these resources in /etc/appliance/blacklist: "+str(black_list))
                 except ValueError:
                     logger.error("error parsing /etc/appliance/blacklist")
@@ -411,9 +411,9 @@ class system_monitor(threading.Thread):
             selfhost = os.uname()[1]
             counter=0
             while self.running:
+                self.threadEvent.wait(5 if counter>0 else: 1)
                 counter+=1
                 counter=counter%5
-                self.threadEvent.wait(5)
                 if suspended:continue
                 tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
 
@@ -539,10 +539,11 @@ class system_monitor(threading.Thread):
 
     def getLumiQueueStat(self):
         try:
-            with open(conf.watch_directory,'run'+str(activeRuns[-1]).zfill(conf.run_number_padding),'open','queue_status.jsn') as fp:
+            with open(os.path.join(conf.watch_directory,'run'+str(active_runs[-1]).zfill(conf.run_number_padding),
+                      'open','queue_status.jsn'),'r') as fp:
                 #fcntl.flock(fp, fcntl.LOCK_EX)
                 statusDoc = json.load(fp)
-                return str(statusDoc["NumQueuedLS"])
+                return str(statusDoc["numQueuedLS"])
         except:
           return "-1"
 
@@ -1124,7 +1125,7 @@ class Run:
             if conf.role=='bu':
                 if cpu == os.uname()[1]:continue
                 if cpu in machine_blacklist:
-                    logger.info("skipping blacklisted resource "+str(resource.cpu))
+                    logger.info("skipping blacklisted resource "+str(cpu))
                     continue
  
             count = count+1

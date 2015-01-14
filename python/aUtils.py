@@ -124,11 +124,11 @@ class MonitorRanger:
             self.logger.info("Update status file - queued lumis:"+str(num_queued_lumis)+ " EoLS:: max queued:"+str(self.maxQueuedLumi) \
                              +" un-queued:"+str(self.maxReceivedEoLS)+"  Lumis:: last closed:"+str(self.maxClosedLumi)+ " num open:"+str(self.numOpenLumis))
         #write json
-        doc = {"NumQueuedLS":num_queued_lumis,
+        doc = {"numQueuedLS":num_queued_lumis,
                "maxQueuedLS":self.maxQueuedLumi,
-               "NumReadFromQueueLS:":self.maxReceivedEoLS,
-               "MaxClosedLS":self.maxClosedLumi,
-               "NumReadOpenLS":self.numOpenLumis
+               "numReadFromQueueLS:":self.maxReceivedEoLS,
+               "maxClosedLS":self.maxClosedLumi,
+               "numReadOpenLS":self.numOpenLumis
                }
         #file is locked
         try:
@@ -200,23 +200,23 @@ class fileHandler(object):
             if ext == ".jsd" : return DEFINITION
             if ext == ".jsn":
                 if STREAMERRORNAME.upper() in name: return STREAMERR
-                elif "BOLS" in name : return BOLS
-                elif "STREAM" in name and "_PID" in name: return STREAM
-                elif "INDEX" in name and  "_PID" in name: return INDEX
-                elif "CRASH" in name and "_PID" in name: return CRASH
-                elif "EOLS" in name: return EOLS
-                elif "EOR" in name: return EOR
+                elif "_BOLS" in name : return BOLS
+                elif "_STREAM" in name and "_PID" in name: return STREAM
+                elif "_INDEX" in name and  "_PID" in name: return INDEX
+                elif "_CRASH" in name and "_PID" in name: return CRASH
+                elif "_EOLS" in name: return EOLS
+                elif "_EOR" in name: return EOR
                 elif "_TRANSFER" in name: return DEFINITION
-                elif "QUEUE_STATUS" in name: return QSTATUS
         if ext==".jsn":
             if STREAMDQMHISTNAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
-            if "STREAM" in name and "_PID" not in name: return OUTPUT
+            if "_STREAM" in name and "_PID" not in name: return OUTPUT
+            if name.startswith("QUEUE_STATUS"): return QSTATUS
         if ext==".pb":
             if "_PID" not in name: return PB
             else: return PIDPB
         if name.endswith("COMPLETE"): return COMPLETE
-        if ".fast" in filename: return FAST
-        if "slow" in filename: return SLOW
+        if ext == ".fast" in filename: return FAST
+        if ext == ".slow" in filename: return SLOW
         if ext == ".leg" and "MICROSTATELEGEND" in name: return MODULELEGEND
         if ext == ".leg" and "PATHLEGEND" in name: return PATHLEGEND
         if "boxes" in filepath : return BOX
