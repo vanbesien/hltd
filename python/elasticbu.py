@@ -83,6 +83,10 @@ class elasticBandBU:
         self.updateIndexMaybe(self.runindex_name,self.runindex_write,self.runindex_read,mappings.central_es_settings,mappings.central_runindex_mapping)
         self.updateIndexMaybe(self.boxinfo_name,self.boxinfo_write,self.boxinfo_read,mappings.central_es_settings,mappings.central_boxinfo_mapping)
         self.black_list=None
+        if self.conf.instance=='main':
+            self.hostinst = self.host
+        else:
+            self.hostinst = self.host+'_'+self.conf.instance
 
         #write run number document
         if runMode == True and self.stopping==False:
@@ -207,8 +211,12 @@ class elasticBandBU:
 
         if infile.data=={}:return
 
+        bu_doc=False
+        if basename.startswith('bu') or basename.startswith('dvbu'):
+            bu_doc=True
+
         #check box file against blacklist
-        if basename.startswith('bu') or self.black_list==None:
+        if bu_doc or self.black_list==None:
             self.black_list=[]
 
             try:
@@ -224,7 +232,7 @@ class elasticBandBU:
 
         if basename in self.black_list:return
 
-        if basename.startswith('fu'):
+        if bu_doc==False:
             try:
                 self.boxinfoFUMap[basename] = [infile.data,current_time]
             except Exception as ex:
@@ -232,16 +240,30 @@ class elasticBandBU:
                 return
         try:
             document = infile.data
-            document['id']=basename
-            document['buhost']=self.host
+            #unique id for separate instances
+            if bu_doc:
+                document['id']=self.hostinst
+            else:
+                document['id']=basename
+
+            #both here and in "boxinfo_appliance"
+            document['appliance']=self.host
+            document['instance']=self.conf.instance
+            #only here
+            document['host']=basename
+
             self.index_documents('boxinfo',[document])
         except Exception as ex:
             self.logger.warning('box info not injected: '+str(ex))
             return
-        if basename.startswith('bu') or basename.startswith('dvbu'):
+        if bu_doc:
             try:
                 document = infile.data
-                try:document.pop('id')
+                try:
+                    document.pop('id')
+                except:pass
+                try:
+                    document.pop('host')
                 except:pass
                 #aggregation from FUs
                 document['idles']=0
@@ -543,6 +565,7 @@ class RunCompletedChecker(threading.Thread):
         self.threadEvent = threading.Event()
         self.run_dir = run_dir
         self.active_runs = active_runs
+        self.active_runs_errors = active_runs_errors
         self.elastic_process=elastic_process
         try:
             threading.Thread.__init__(self)
@@ -624,9 +647,13 @@ class RunCompletedChecker(threading.Thread):
 
             if check_boxes==False:
                 try:
-                    self.active_runs_errors.pop(self.active_runs.index(self.nr))
+                    self.active_runs_errors.pop(self.active_runs.index(int(self.nr)))
+                except:
+                    pass
+                try:
                     self.active_runs.remove(int(self.nr))
-                except:pass
+                except:
+                    pass
 
             if check_es_complete:
                 try:
@@ -640,7 +667,7 @@ class RunCompletedChecker(threading.Thread):
                             #fill in central index completition time
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
                             requests.post(self.conf.elastic_runindex_url+'/'+"runindex_"+self.conf.elastic_runindex_name+'_write/run',postq,timeout=5)
-                            self.logger.info("filled in completition time for run"+str(self.nr))
+                            self.logger.info("filled in completition time for run "+str(self.nr))
                         except IndexError:
                             # 0 FU resources present in this run, skip writing completition time
                             pass 

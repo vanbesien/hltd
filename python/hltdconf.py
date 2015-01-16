@@ -39,7 +39,7 @@ class hltdConf:
         try:
           self.instance_same_destination=bool(self.instance_same_destination=="True")
         except:
-          self.instance_same_destination = False
+          self.instance_same_destination = True
 
         self.dqm_machine = bool(self.dqm_machine=="True")
         if self.dqm_machine:

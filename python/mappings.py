@@ -164,8 +164,10 @@ central_boxinfo_mapping = {
             '_id'        :{'path':'id'},
             'properties' : {
               'fm_date'       :{'type':'date'},
-              'id'            :{'type':'string',"index":"not_analyzed"},
-              'buhost'        :{'type':'string',"index":"not_analyzed"},
+              'id'            :{'type':'string'},
+              'host'          :{'type':'string',"index":"not_analyzed"},
+              'appliance'     :{'type':'string',"index":"not_analyzed"},
+              'instance'      :{'type':'string',"index":"not_analyzed"},
               'broken'        :{'type':'integer'},
               'used'          :{'type':'integer'},
               'idles'         :{'type':'integer'},
@@ -205,7 +207,9 @@ central_boxinfo_mapping = {
               'totalOutput'   :{'type':'integer'},
               'activeRuns'    :{'type':'string'},
               'hosts'           :{'type':'string',"index":"not_analyzed"},
-              'blacklistedHosts':{'type':'string',"index":"not_analyzed"}
+              'blacklistedHosts':{'type':'string',"index":"not_analyzed"},
+              'host'            :{'type':'string',"index":"not_analyzed"},
+              'instance'        :{'type':'string',"index":"not_analyzed"}
               },
             '_timestamp' : { 
               'enabled'   : True,

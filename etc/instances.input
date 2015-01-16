@@ -1,37 +1,27 @@
 {
   "dvbu-c2f34-30-01":
   {
-    "names":["main","test0"],
+    "names":["main","testing"],
     "sizes":[20,30]
-  },
-  "dvrubu-c2f34-17-01":
-  {
-    "names":["test0"],
-    "sizes":[0]
-  },
-  "dvrubu-c2f34-17-02":
-  {
-    "names":["test0"],
-    "sizes":[0]
   },
   "dvrubu-c2f34-17-03":
   {
-    "names":["test0"],
+    "names":["testing"],
     "sizes":[0]
   },
   "dvrubu-c2f34-17-04":
   {
-    "names":["test0"],
+    "names":["testing"],
     "sizes":[0]
   },
   "bu-vm-01-01.cern.ch":
   {
-    "names":["main","mockup"],
+    "names":["main","testing"],
     "sizes":[1000,500]
   },
   "fu-vm-02-02.cern.ch":
   {
-    "names":["mockup"],
+    "names":["testing"],
     "sizes":[0]
   }
 }

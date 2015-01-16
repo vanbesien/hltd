@@ -1552,6 +1552,13 @@ class RunRanger:
         dirname=event.fullpath[event.fullpath.rfind("/")+1:]
         logger.info('RunRanger: new filename '+dirname)
         if dirname.startswith('run'):
+
+            if os.path.islink(event.fullpath):
+                logger.info('directory ' + event.fullpath + ' is link. Ignoring this run')
+                return
+            if not os.path.isdir(event.fullpath):
+                logger.info(event.fullpath +' is a file. A directory is needed to start a run.')
+                return
             nr=int(dirname[3:])
             if nr!=0:
                 try:
@@ -1611,6 +1618,10 @@ class RunRanger:
                     else:
                         run_list.remove(run_list[-1])
                     resource_lock.release()
+                    if conf.role == 'bu' and conf.instance != 'main':
+                        logger.info('creating run symlink in main ramdisk directory')
+                        main_ramdisk = os.path.dirname(os.path.normpath(conf.watch_directory))
+                        os.symlink(event.fullpath,os.path.join(main_ramdisk,os.path.basename(event.fullpath)))
                 except OSError as ex:
                     logger.error("RunRanger: "+str(ex)+" "+ex.filename)
                     logger.exception(ex)

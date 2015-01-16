@@ -39,7 +39,7 @@ class elasticBand():
             try:
                 document = json.load(fp)
             except json.scanner.JSONDecodeError,ex:
-                logger.exception(ex)
+                self.logger.exception(ex)
                 return None,-1
             return document,0
 
