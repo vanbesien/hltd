@@ -1020,12 +1020,12 @@ class Run:
         if conf.role == "bu":
             try:
                 self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
-                if conf.instance!="main" and conf.instance_same_destination==False:
-                    try:os.mkdir(os.path.join(conf.micromerge_output,conf.instance))
-                    except:pass
-                    self.buoutputdir = os.path.join(conf.micromerge_output,instance,'run'+str(self.runnumber).zfill(conf.run_number_padding))
-                else:
-                    self.buoutputdir = os.path.join(conf.micromerge_output,'run'+str(self.runnumber).zfill(conf.run_number_padding))
+                #if conf.instance!="main" and conf.instance_same_destination==False:
+                #    try:os.mkdir(os.path.join(conf.micromerge_output,conf.instance))
+                #    except:pass
+                #    self.buoutputdir = os.path.join(conf.micromerge_output,instance,'run'+str(self.runnumber).zfill(conf.run_number_padding))
+                #else:
+                #    self.buoutputdir = os.path.join(conf.micromerge_output,'run'+str(self.runnumber).zfill(conf.run_number_padding))
                 os.mkdir(self.rawinputdir+'/mon')
             except Exception, ex:
                 logger.error("could not create mon dir inside the run input directory")

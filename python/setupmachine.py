@@ -799,7 +799,7 @@ if __name__ == "__main__":
 
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('watch_directory',watch_dir_bu,'[General]')
-          hltdcfg.reg('micromerge_output',out_dir_bu,'[General]')
+          #hltdcfg.reg('micromerge_output',out_dir_bu,'[General]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('use_elasticsearch',use_elasticsearch,'[Monitoring]')
