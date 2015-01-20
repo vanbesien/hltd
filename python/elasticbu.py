@@ -680,7 +680,7 @@ class RunCompletedChecker(threading.Thread):
                         time.sleep(5)
                         total_es_elapsed+=5
                         if total_es_elapsed>600:
-                            self.logger.warning('run index complete flag was not written by all FUs, giving up after 10 minutes.')
+                            self.logger.warning('run index complete flag was not written by all FUs, giving up checks after 10 minutes.')
                             check_es_complete=False
                             continue
                 except Exception,ex:

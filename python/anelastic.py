@@ -576,7 +576,8 @@ class LumiSectionHandler():
         outfilelist = self.outfileList[:]
         for outfile in outfilelist:
             stream = outfile.stream
-            processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
+            errEntry = outfile.getFieldByName("ErrorEvents")
+            processed = outfile.getFieldByName("Processed")+errEntry
             if processed == self.totalEvent:
 
                 if outfile.filetype==STREAMDQMHISTOUTPUT:
@@ -622,7 +623,14 @@ class LumiSectionHandler():
                         except:
                             doChecksum=False
                             pass
-                        (status,checksum)=datfile.moveFile(newfilepath,adler32=doChecksum)
+                        #test
+                        if processed==errEntry:
+                            self.logger.info("all events are error events for stream "+stream+":"+str(errEntry))
+                            try:os.remove(datfile.filepath)
+                            except:pass
+                            doChecksum=False
+                        else: 
+                            (status,checksum)=datfile.moveFile(newfilepath,adler32=doChecksum)
                         checksum_success=True
                         if doChecksum and status:
                             if checksum_cmssw!=checksum&0xffffffff:
