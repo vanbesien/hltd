@@ -54,6 +54,7 @@ suspended=False
 entering_cloud_mode=False
 cloud_mode=False
 
+ramdisk_submount_size=0
 machine_blacklist=[]
 boxinfoFUMap = {}
 
@@ -320,6 +321,25 @@ def cleanup_mountpoints(remount=True):
             return False
         else:return False
 
+def submount_size(basedir):
+    loop_size=0
+    try:
+        p = subprocess.Popen("mount", shell=False, stdout=subprocess.PIPE)
+        p.wait()
+        std_out=p.stdout.read().split("\n")
+        for l in std_out:
+            try:
+                ls = l.strip()
+                toks = l.split()
+                if toks[0].startswith(basedir) and toks[2].startswith(basedir) and 'loop' in toks[5]:
+                    imgstat = os.stat(toks[0])
+                    imgsize = imgstat.st_size
+                    loop_size+=imgsize
+            except:pass
+    except:pass
+    return loop_size
+
+
 def calculate_threadnumber():
     global nthreads
     global nstreams
@@ -406,6 +426,7 @@ class system_monitor(threading.Thread):
         try:
             logger.debug('entered system monitor thread ')
             global suspended
+            global ramdisk_submount_size
             res_path_temp = os.path.join(conf.watch_directory,'appliance','resource_summary_temp')
             res_path = os.path.join(conf.watch_directory,'appliance','resource_summary')
             selfhost = os.uname()[1]
@@ -417,13 +438,25 @@ class system_monitor(threading.Thread):
                 if suspended:continue
                 tstring = datetime.datetime.utcfromtimestamp(time.time()).isoformat()
 
-                #TODO:multiple mount points on BU
+                ramdisk = None
                 if conf.role == 'bu':
+                    ramdisk = os.statvfs(conf.watch_directory)
+                    ramdisk_occ=1
+                    try:ramdisk_occ = float((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize - ramdisk_submount_size)/float(ramdisk.f_blocks*ramdisk.f_bsize - ramdisk_submount_size)
+                    except:pass
+                    if ramdisk_occ<0:
+                        ramdisk_occ=0
+                        logger.info('incorrect ramdisk occupancy',ramdisk_occ)
+                    if ramdisk_occ>1:
+                        ramdisk_occ=1
+                        logger.info('incorrect ramdisk occupancy',ramdisk_occ)
+
                     resource_count_idle = 0
                     resource_count_used = 0
                     resource_count_broken = 0
                     cloud_count = 0
                     lastFURuns = []
+                    lastFURun=-1
                     activeRunQueuedLumisNum = -1
                     current_time = time.time()
                     for key in boxinfoFUMap:
@@ -437,13 +470,19 @@ class system_monitor(threading.Thread):
                         try:
                             lastFURuns.append(int(entry[0]['activeRuns'].strip('[]').split(',')[-1]))
                         except:pass
-                        try:
-                            qlumis = int(entry[0]['activeRunNumQueuedLS'])
-                            if qlumis>activeRunQueuedLumisNum:activeRunQueuedLumisNum=qlumis
-                        except:pass
                     fuRuns = sorted(list(set(lastFURuns)))
-                    if len(fuRuns)>0:lastFURun = fuRuns[-1]
-                    else:lastFURun=1
+                    if len(fuRuns)>0:
+                        lastFURun = fuRuns[-1]
+                        #second pass
+                        for key in boxinfoFUMap:
+                            if key==selfhost:continue
+                            try:
+                                entry = boxinfoFUMap[key][0]
+                                lastrun = int(entry['activeRuns'].strip('[]').split(',')[-1])
+                                if lastrun==lastFURun:
+                                    qlumis = int(entry['activeRunNumQueuedLS'])
+                                    if qlumis>activeRunQueuedLumisNum:activeRunQueuedLumisNum=qlumis
+                            except:pass
                     res_doc = {
                                 "active_resources":resource_count_idle+resource_count_used,
                                 "idle":resource_count_idle,
@@ -451,7 +490,8 @@ class system_monitor(threading.Thread):
                                 "broken":resource_count_broken,
                                 "cloud":cloud_count,
                                 "activeFURun":lastFURun,
-                                "activeRunNumQueuedLS":activeRunQueuedLumisNum
+                                "activeRunNumQueuedLS":activeRunQueuedLumisNum,
+                                "ramdisk_occupancy":ramdisk_occ
                               }
                     with open(res_path_temp,'w') as fp:
                         json.dump(res_doc,fp)
@@ -491,7 +531,7 @@ class system_monitor(threading.Thread):
                                 cleanup_mountpoints()
 
                     if conf.role == 'bu':
-                        ramdisk = os.statvfs(conf.watch_directory)
+                        #ramdisk = os.statvfs(conf.watch_directory)
                         outdir = os.statvfs('/fff/output')
                         with open(mfile,'w+') as fp:
                             fp.write('fm_date='+tstring+'\n')
@@ -500,8 +540,8 @@ class system_monitor(threading.Thread):
                             fp.write('broken=0\n')
                             fp.write('quarantined=0\n')
                             fp.write('cloud=0\n')
-                            fp.write('usedRamdisk='+str(((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)>>20)+'\n')
-                            fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize)>>20)+'\n')
+                            fp.write('usedRamdisk='+str(((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize - ramdisk_submount_size)>>20)+'\n')
+                            fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize - ramdisk_submount_size)>>20)+'\n')
                             fp.write('usedOutput='+str(((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)>>20)+'\n')
                             fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
                             fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
@@ -2165,6 +2205,10 @@ class hltd(Daemon2,object):
         if conf.role == 'bu':
             global machine_blacklist
             update_success,machine_blacklist=updateBlacklist()
+            global ramdisk_submount_size
+            if self.instance == 'main':
+                #if there are other instance mountpoints in ramdisk, they will be subtracted from size estimate
+                ramdisk_submount_size = submount_size(conf.watch_directory)
 
         """
         the line below is a VERY DIRTY trick to address the fact that

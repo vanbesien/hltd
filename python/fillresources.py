@@ -3,6 +3,18 @@
 import os
 import shutil
 import hltdconf
+import time
+
+def clearDir(dir):
+  try:
+    files = os.listdir(dir)
+    for file in files:
+      try:
+        os.unlink(os.path.join(dir,file))
+      except:
+        pass
+  except:
+    pass
 
 conf=hltdconf.hltdConf('/etc/hltd.conf')
 
@@ -15,26 +27,11 @@ else: role = conf.role
 
 if role=='fu' and not conf.dqm_machine:
 
-    try:
-        shutil.rmtree('/etc/appliance/idle/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/online/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/except/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/quarantined/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/cloud/*')
-    except:
-        pass
+    clearDir(conf.resource_base+'/idle')
+    clearDir(conf.resource_base+'/online')
+    clearDir(conf.resource_base+'/except')
+    clearDir(conf.resource_base+'/quarantined')
+    clearDir(conf.resource_base+'/cloud')
  
     fp=open('/proc/cpuinfo','r')
     resource_count = 0

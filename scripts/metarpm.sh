@@ -209,6 +209,7 @@ mkdir -p etc/init.d/
 cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
 cp $BASEDIR/etc/instances.input %{buildroot}/opt/fff/instances.input
 echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
+echo python2.6 /opt/hltd/python/fillresources.py >>  %{buildroot}/opt/fff/configurefff.sh
 echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
 
 cp $BASEDIR/esplugins/$pluginfile1 %{buildroot}/opt/fff/esplugins/$pluginfile1

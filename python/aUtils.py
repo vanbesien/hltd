@@ -87,7 +87,7 @@ class MonitorRanger:
                 if queuedLumi not in self.queuedLumiList:
                     if queuedLumi>self.maxQueuedLumi:
                         self.maxQueuedLumi=queuedLumi
-                    queuedLumiList.append(queuedLumi)
+                    self.queuedLumiList.append(queuedLumi)
                     self.lock.release()
                     self.updateQueueStatusFile()
                 else:
@@ -95,8 +95,9 @@ class MonitorRanger:
                     #skip if EoL for LS in queue has already been written once (e.g. double file create race)
                     return False
             except:
-                self.logger.warning("Unexpected EoLS filename: "+str(os.path.basename(event.fullpath)))
-                self.lock.release()
+                self.logger.warning("Problem checking new EoLS filename: "+str(os.path.basename(event.fullpath)) + " error:"+str(ex))
+                try:self.lock.release()
+                except:pass
         return True
 
     def notifyLumi(self,ls,maxReceivedEoLS,maxClosedLumi,numOpenLumis):
@@ -340,10 +341,11 @@ class fileHandler(object):
         return True
 
 
-    def deleteFile(self):
+    def deleteFile(self,silent=False):
         #return True
         filepath = self.filepath
-        self.logger.info(filepath)
+        if silent==False:
+            self.logger.info(filepath)
         if os.path.isfile(filepath):
             try:
                 os.remove(filepath)

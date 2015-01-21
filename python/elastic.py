@@ -98,19 +98,19 @@ class elasticCollector():
             elif filetype == SLOW: 
                 es.elasticize_prc_sstate(infile)      
                 self.logger.debug(name+" going into prc-sstate")
-                self.infile.deleteFile()  
+                self.infile.deleteFile(silent=True)  
             elif filetype == INDEX: 
                 self.logger.info(name+" going into prc-in")
                 es.elasticize_prc_in(infile)
-                self.infile.deleteFile()
+                self.infile.deleteFile(silent=True)
             elif filetype == STREAM:
                 self.logger.info(name+" going into prc-out")
                 es.elasticize_prc_out(infile)
-                self.infile.deleteFile()
+                self.infile.deleteFile(silent=True)
             elif filetype in [OUTPUT,STREAMDQMHISTOUTPUT]:
                 self.logger.info(name+" going into fu-out")
                 es.elasticize_fu_out(infile)
-                self.infile.deleteFile()
+                self.infile.deleteFile(silent=True)
             elif filetype == QSTATUS:
                 self.logger.debug(name+" going into qstatus")
                 es.elasticize_queue_status(infile)
@@ -119,14 +119,14 @@ class elasticCollector():
                 dt=os.path.getctime(infile.filepath)
                 completed = datetime.datetime.utcfromtimestamp(dt).isoformat()
                 es.elasticize_fu_complete(completed)
-                self.infile.deleteFile()
+                self.infile.deleteFile(silent=True)
                 self.stop()
  
 
     def elasticizeLS(self):
         ls = self.infile.ls
         es.flushLS(ls)
-        self.infile.deleteFile()
+        self.infile.deleteFile(silent=True)
 
 
 

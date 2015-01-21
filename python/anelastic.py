@@ -219,7 +219,7 @@ class LumiSectionRanger():
                         # Where shall this exception be handled?
                 self.logger.warning("Found a bad ini file %s" %filepath)
             else:
-                self.infile.deleteFile()
+                self.infile.deleteFile(silent=True)
 
         self.createErrIniFile()
 
@@ -428,7 +428,7 @@ class LumiSectionHandler():
             try:
                 (filestem,ext)=os.path.splitext(self.infile.filepath)
                 os.remove(filestem + '.pb')
-                self.infile.deleteFile()
+                self.infile.deleteFile(silent=True)
             except:pass
             return
         
@@ -438,7 +438,7 @@ class LumiSectionHandler():
                 try:
                     (filestem,ext)=os.path.splitext(self.infile.filepath)
                     os.remove(filestem + '.pb')
-                    self.infile.deleteFile()
+                    self.infile.deleteFile(silent=True)
                 except:pass
             else:
                 self.logger.critical("pid %r not in pidlist as expected for ls %r. Skip file. " %(self.infile.pid,self.ls))
@@ -472,7 +472,7 @@ class LumiSectionHandler():
                 processed = outfile.getFieldByName("Processed")
                 self.logger.info("ls,stream: %r,%r - events %r / %r " %(ls,stream,processed,self.totalEvent))
                 infile.esCopy()
-                infile.deleteFile()
+                infile.deleteFile(silent=True)
                 return True
         return False
 
@@ -678,7 +678,7 @@ class LumiSectionHandler():
 
             #delete all index files
             for item in self.indexfileList:
-                item.deleteFile()
+                item.deleteFile(silent=True)
 
 
             #moving streamError file
