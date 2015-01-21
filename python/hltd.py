@@ -462,7 +462,7 @@ class system_monitor(threading.Thread):
                     for key in boxinfoFUMap:
                         if key==selfhost:continue
                         entry = boxinfoFUMap[key]
-                        if current_time - entry[1] > 20:continue
+                        if current_time - entry[1] > 10:continue
                         resource_count_idle+=int(entry[0]['idles'])
                         resource_count_used+=int(entry[0]['used'])
                         resource_count_broken+=int(entry[0]['broken'])
@@ -476,11 +476,12 @@ class system_monitor(threading.Thread):
                         #second pass
                         for key in boxinfoFUMap:
                             if key==selfhost:continue
+                            entry = boxinfoFUMap[key]
+                            if current_time - entry[1] > 10:continue
                             try:
-                                entry = boxinfoFUMap[key][0]
-                                lastrun = int(entry['activeRuns'].strip('[]').split(',')[-1])
+                                lastrun = int(entry[0]['activeRuns'].strip('[]').split(',')[-1])
                                 if lastrun==lastFURun:
-                                    qlumis = int(entry['activeRunNumQueuedLS'])
+                                    qlumis = int(entry[0]['activeRunNumQueuedLS'])
                                     if qlumis>activeRunQueuedLumisNum:activeRunQueuedLumisNum=qlumis
                             except:pass
                     res_doc = {
