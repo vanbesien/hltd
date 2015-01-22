@@ -362,18 +362,18 @@ def updateBlacklist():
     #TODO:this will be updated to read blacklist from database
     if conf.role=='bu':
         try:
-            os.stat('/etc/appliance/blacklist')
-            with open('/etc/appliance/blacklist','r') as fi:
-                try:
-                    static_black_list = json.load(fi)
-                    for item in static_black_list:
-                        black_list.append(item)
-                    logger.info("found these resources in /etc/appliance/blacklist: "+str(black_list))
-                except ValueError:
-                    logger.error("error parsing /etc/appliance/blacklist")
+            if os.stat('/etc/appliance/blacklist').st_size>0:
+                with open('/etc/appliance/blacklist','r') as fi:
+                    try:
+                        static_black_list = json.load(fi)
+                        for item in static_black_list:
+                            black_list.append(item)
+                        logger.info("found these resources in /etc/appliance/blacklist: "+str(black_list))
+                    except ValueError:
+                        logger.error("error parsing /etc/appliance/blacklist")
         except:
-            #no blacklist file, this is ok
-            pass
+                #no blacklist file, this is ok
+                pass
         black_list=list(set(black_list))
         try:
             forceUpdate=False

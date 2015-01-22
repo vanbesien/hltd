@@ -34,12 +34,13 @@ class elasticBand():
         aliasName = runstring + "_" + indexSuffix
         self.indexName = aliasName# + "_" + self.hostname 
  
-    def imbue_jsn(self,infile):
+    def imbue_jsn(self,infile,silent=False):
         with open(infile.filepath,'r') as fp:
             try:
                 document = json.load(fp)
             except json.scanner.JSONDecodeError,ex:
-                self.logger.exception(ex)
+                if silent==False:
+                    self.logger.exception(ex)
                 return None,-1
             return document,0
 
@@ -161,7 +162,7 @@ class elasticBand():
         #self.es.index(self.indexName,'prc-in',document)
 
     def elasticize_queue_status(self,infile):
-        document,ret = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile,silent=True)
         if ret<0:return False
         document['fm_date']=str(infile.mtime)
         document['host']=self.hostname
