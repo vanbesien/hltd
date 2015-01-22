@@ -1,15 +1,15 @@
 {
-  "dvbu-c2f34-30-01":
+  "DISABLED-dvbu-c2f34-30-01":
   {
     "names":["main","testing"],
     "sizes":[20,30]
   },
-  "dvrubu-c2f34-17-03":
+  "DISABLED-dvrubu-c2f34-17-03":
   {
     "names":["testing"],
     "sizes":[0]
   },
-  "dvrubu-c2f34-17-04":
+  "DISABLED-dvrubu-c2f34-17-04":
   {
     "names":["testing"],
     "sizes":[0]

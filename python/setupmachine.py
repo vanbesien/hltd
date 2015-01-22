@@ -722,6 +722,8 @@ if __name__ == "__main__":
             if newline:f.writelines('\n')
             newline=True
             f.writelines(getIPs(addr)[0])
+            #break after writing first entry. it is not yet safe to use secondary interface
+            break
         f.close()
 
       #FU should have one instance assigned, BUs can have multiple

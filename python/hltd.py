@@ -58,6 +58,8 @@ ramdisk_submount_size=0
 machine_blacklist=[]
 boxinfoFUMap = {}
 
+logCollector = None
+
 def setFromConf(myinstance):
 
     global conf
@@ -390,6 +392,16 @@ def updateBlacklist():
     #TODO:check on FU if blacklisted
     return True,black_list
 
+def restartLogCollector(instanceParam):
+        global logCollector
+        if logCollector!=None:
+            logger.info("terminating logCollector")
+            logCollector.terminate()
+            logCollector = None
+        logger.info("starting logcollector.py")
+        logcollector_args = ['/opt/hltd/python/logcollector.py']
+        logcollector_args.append(instanceParam)
+        logCollector = subprocess.Popen(logcollector_args,preexec_fn=preexec_function,close_fds=True)
 
 class system_monitor(threading.Thread):
 
@@ -1911,6 +1923,7 @@ class RunRanger:
                 logger.exception(ex)
                 cloud_mode=False
             resource_lock.release()
+            os.remove(event.fullpath)
 
         elif dirname.startswith('include') and conf.role == 'fu':
             #TODO: pick up latest working run..
@@ -1933,6 +1946,11 @@ class RunRanger:
                     if (tries%10)==0:
                         logger.warning("could not move all resources, retrying.")
                 cloud_mode=False
+            os.remove(event.fullpath)
+        elif dirname.startswith('logrestart'):
+            #hook to restart logcollector process manually
+            restartLogCollector(self.instance)
+            os.remove(event.fullpath)
  
         logger.debug("RunRanger completed handling of event "+event.fullpath)
 
@@ -2221,13 +2239,9 @@ class hltd(Daemon2,object):
         watch_directory = os.readlink(conf.watch_directory) if os.path.islink(conf.watch_directory) else conf.watch_directory
         resource_base = os.readlink(conf.resource_base) if os.path.islink(conf.resource_base) else conf.resource_base
 
-        logCollector = None
-        if conf.use_elasticsearch == True and logCollector==None:
-            logger.info("starting logcollector.py")
-            logcollector_args = ['/opt/hltd/python/logcollector.py']
-            logcollector_args.append(self.instance)
+        if conf.use_elasticsearch == True:
             time.sleep(.2)
-            logCollector = subprocess.Popen(logcollector_args,preexec_fn=preexec_function,close_fds=True)
+            restartLogCollector(self.instance)
 
         #start boxinfo elasticsearch updater
         global nsslock
@@ -2302,6 +2316,7 @@ class hltd(Daemon2,object):
             if boxInfo is not None:
                 logger.info("stopping boxinfo updater")
                 boxInfo.stop()
+            global logCollector
             if logCollector is not None:
                 logger.info("terminating logCollector")
                 logCollector.terminate()

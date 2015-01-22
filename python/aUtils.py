@@ -131,20 +131,29 @@ class MonitorRanger:
                "maxClosedLS":self.maxClosedLumi,
                "numReadOpenLS":self.numOpenLumis
                }
-        #file is locked
         try:
             if self.queueStatusPath!=None:
-                with open(self.queueStatusPath+TEMPEXT,"w") as fp:
-                    #fcntl.flock(fp, fcntl.LOCK_EX)
-                    json.dump(doc,fp)
-                os.rename(self.queueStatusPath+TEMPEXT,self.queueStatusPath)
+                attempts=3
+                while attempts>0:
+                    try:
+                        with open(self.queueStatusPath+TEMPEXT,"w") as fp:
+                            #fcntl.flock(fp, fcntl.LOCK_EX)
+                            json.dump(doc,fp)
+                        os.rename(self.queueStatusPath+TEMPEXT,self.queueStatusPath)
+                        break
+                    except Exception as ex:
+                        attempts-=1
+                        if attempts==0:
+                            raise ex
+                        self.logger.warning("Unable to write status file, with error:" + str(ex)+".retrying...")
+                        time.sleep(0.05)
                 try:
                     shutil.copyfile(self.queueStatusPath,self.queueStatusPathMon)
                 except:
                     pass
-        except:
+        except Exception as ex:
             self.logger.error("Unable to open/write " + self.queueStatusPath)
-
+            self.logger.exception(ex)
 
 
 class fileHandler(object):
