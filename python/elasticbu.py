@@ -530,7 +530,7 @@ class BoxInfoUpdater(threading.Thread):
         try:
             self.stopping=True
             self.threadEvent.set()
-            if self.es:
+            if self.es is not None:
                 self.es.stopping=True
                 self.es.threadEvent.set()
             if self.mr is not None:
