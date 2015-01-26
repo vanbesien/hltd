@@ -76,6 +76,10 @@ class LumiSectionRanger():
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
                     self.emptyQueue.set() 
+                except Exception as ex:
+                    self.logger.exception(ex)
+                    self.logger.fatal("Exiting on unhandled exception")
+                    os._exit(1)
             else:
                 time.sleep(0.5)
             #allow timeout in case 'complete' file is received and lumi is not closed

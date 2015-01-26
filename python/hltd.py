@@ -1811,7 +1811,7 @@ class RunRanger:
                             if runtoend[0].checkQuarantinedLimit()==True:
                                 hasHigherRuns = filter(lambda x: x.runnumber>nr,run_list)
                                 if len(hasHigherRuns)>0:
-                                    runtoend[0].Shutdown()
+                                    runtoend[0].Shutdown(True)
                                 else:
                                     runs_pending_shutdown.append(nr)
                     except Exception as ex:
