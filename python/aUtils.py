@@ -341,7 +341,12 @@ class fileHandler(object):
         #get definitions from jsd file
     def getDefinitions(self):
         if self.filetype in [STREAM]:
+            #try:
             self.jsdfile = self.data["definition"]
+            #except:
+            #    self.logger.error("no definition field in "+str(self.filepath))
+            #   self.definitions = {}
+            #   return False
         elif not self.jsdfile: 
             self.logger.warning("jsd file not set")
             self.definitions = {}

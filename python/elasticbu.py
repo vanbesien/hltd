@@ -134,7 +134,7 @@ class elasticBandBU:
                 retry=True
                 continue
 
-            except (ConnectionError,Timeout) as ex:
+            except (socket.gaierror,ConnectionError,Timeout) as ex:
                 #try to reconnect with different IP from DNS load balancing
                 if self.runMode and connectionAttempts>100:
                    self.logger.error('elastic (BU): exiting after 100 connection attempts to '+ self.es_server_url)
@@ -315,8 +315,10 @@ class elasticBandBU:
     def index_documents(self,name,documents,bulk=True):
         attempts=0
         destination_index = ""
+        is_box=False
         if name.startswith("boxinfo"):
           destination_index = self.boxinfo_write
+          is_box=True
         else:
           destination_index = self.runindex_write
         while True:
@@ -330,12 +332,14 @@ class elasticBandBU:
             except ElasticHttpError as ex:
                 if attempts<=1:continue
                 self.logger.error('elasticsearch HTTP error. skipping document '+name)
+                if is_box==True:break
                 #self.logger.exception(ex)
                 return False
-            except (ConnectionError,Timeout) as ex:
+            except (socket.gaierror,ConnectionError,Timeout) as ex:
                 if attempts>100 and self.runMode:
                     raise(ex)
                 self.logger.error('elasticsearch connection error. retry.')
+                if is_box==True:break
                 if self.stopping:return False
                 time.sleep(0.1)
                 ip_url=getURLwithIP(self.es_server_url,self.nsslock)
