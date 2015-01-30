@@ -339,11 +339,11 @@ class elasticBandBU:
                 if attempts>100 and self.runMode:
                     raise(ex)
                 self.logger.error('elasticsearch connection error. retry.')
-                if is_box==True:break
                 if self.stopping:return False
                 time.sleep(0.1)
                 ip_url=getURLwithIP(self.es_server_url,self.nsslock)
                 self.es = ElasticSearch(ip_url,timeout=20,revival_delay=60)
+                if is_box==True:break
         return False
              
 

@@ -194,7 +194,8 @@ def cleanup_mountpoints(remount=True):
             except subprocess.CalledProcessError, err1:
                 logger.info("trying to kill users of ramdisk")
                 try:
-                    subprocess.check_call(['fuser','-km',os.path.join('/'+point,conf.ramdisk_subdirectory)])
+		    pass
+                    #subprocess.check_call(['fuser','-km',os.path.join('/'+point,conf.ramdisk_subdirectory)])
                 except subprocess.CalledProcessError, err2:
                     logger.error("Error calling umount in cleanup_mountpoints (ramdisk), return code:"+str(err2.returncode))
                 try:
@@ -207,7 +208,8 @@ def cleanup_mountpoints(remount=True):
             except subprocess.CalledProcessError, err1:
                 logger.info("trying to kill users of output")
                 try:
-                    subprocess.check_call(['fuser','-km',os.path.join('/'+point,conf.output_subdirectory)])
+	            pass
+                    #subprocess.check_call(['fuser','-km',os.path.join('/'+point,conf.output_subdirectory)])
                 except subprocess.CalledProcessError, err2:
                     logger.error("Error calling umount in cleanup_mountpoints (output), return code:"+str(err2.returncode))
                 try:
@@ -539,9 +541,9 @@ class system_monitor(threading.Thread):
                                 fp.write('entriesComplete=True')
                         except Exception as ex:
                             logger.warning('boxinfo file write failed +'+str(ex))
-                            if counter==0:
-                                #in case something happened with the BU server, try remount
-                                cleanup_mountpoints()
+                            #if counter==0:
+                            #    #in case something happened with the BU server, try remount
+                            #    cleanup_mountpoints()
 
                     if conf.role == 'bu':
                         #ramdisk = os.statvfs(conf.watch_directory)
